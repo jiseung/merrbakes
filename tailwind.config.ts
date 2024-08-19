@@ -8,10 +8,13 @@ const config: Config = {
   ],
   theme: {
     extend: {
-      backgroundImage: {
-        "gradient-radial": "radial-gradient(var(--tw-gradient-stops))",
-        "gradient-conic":
-          "conic-gradient(from 180deg at 50% 50%, var(--tw-gradient-stops))",
+      colors: {
+        'merrbakes-pink': '#F4D9E1',
+        'merrbakes-brown': '#765C4B',
+        'merrbakes-gray': '#424651'
+      },
+      fontFamily: {
+        hand: ['var(--font-patrick-hand-sc)'],
       },
     },
   },
