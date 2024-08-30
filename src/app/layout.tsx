@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Patrick_Hand_SC } from "next/font/google";
+import { GoogleAnalytics } from '@next/third-parties/google';
 import "./globals.css";
 
 const patrick_hand_sc = Patrick_Hand_SC({
@@ -30,6 +31,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${patrick_hand_sc.className}`}>{children}</body>
+      <GoogleAnalytics gaId="G-8XRZYXBJ6V" />
     </html>
   );
 }
