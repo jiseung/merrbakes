@@ -1,12 +1,16 @@
 "use client";
 import Card from "@/components/Card";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {MailingListProps} from "@/components/types";
 
 export default function MailingListItem(props: MailingListProps) {
   const [email, setEmail] = useState('');
   const [joined, setJoined] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    setJoined(false);
+  }, [email]);
 
   async function joinMailingList() {
     try {
