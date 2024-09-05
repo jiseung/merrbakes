@@ -19,7 +19,7 @@ export const metadata: Metadata = {
     'baking streams', 'baking recipes', 'gaming',
     'Twitch baking', 'live stream community', 'baking and gaming',
     'Twitch baking streamer', 'food content creator', 'live chat',
-    'Twitch recipes', 'baking livestream', 'friendly streamer'
+    'learn to bake', 'baking livestream', 'friendly streamer'
   ]
 }
 

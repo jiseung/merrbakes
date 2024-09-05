@@ -32,3 +32,7 @@ export type MailingListProps = ComponentProps;
 export interface MenuProps extends ComponentProps {
   scrollTo: (id: string) => void;
 }
+
+export interface TwitchProps extends ComponentProps {
+  scrollTo: (id: string) => void;
+}

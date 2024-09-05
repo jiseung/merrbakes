@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
     // Append the email to the file with a newline
     await fs.appendFile(filePath, `${email}\n`);
 
-    const response = await mailchimp.lists.addListMember(MAILCHIMP_LIST_ID, {
+    const response = await mailchimp.lists.addListMember(MAILCHIMP_LIST_ID!, {
       email_address: email,
       status: 'subscribed'
     });

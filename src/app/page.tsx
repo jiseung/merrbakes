@@ -1,6 +1,6 @@
 "use client";
 import Script from 'next/script';
-import { useState, useEffect } from 'react';
+import {useState, useEffect, useRef} from 'react';
 import Image from 'next/image';
 import KofiItem from "@/components/KofiItem";
 import Card from "@/components/Card";
@@ -11,6 +11,7 @@ import MailingListItem from "@/components/MailingListItem";
 import DiscordItems from "@/components/DiscordItems";
 import Menu from "@/components/Menu";
 import { InstagramAPIResponseType, InstagramItemType} from "@/app/api/types";
+import TwitchViewer from "@/components/TwitchViewer";
 
 export default function Home() {
   const [isLoading, setIsLoading] = useState(true);
@@ -47,6 +48,8 @@ export default function Home() {
     document.getElementById(id)?.scrollIntoView({behavior: 'smooth'});
   }
 
+
+
   return (
     <>
       <Script
@@ -78,9 +81,8 @@ export default function Home() {
         <h1 className="hand-font text-merrbakes-brown text-6xl" id="top">
           merrbakes
         </h1>
-        <div id="twitch-embed" className="w-full aspect-video py-10 box-content">
-        </div>
-        <MailingListItem className="w-full" />
+        <TwitchViewer scrollTo={scrollTo}/>
+        <MailingListItem className="w-full"/>
         <div className="flex flex-col w-screen p-10 sm:grid sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
           <Card id="shop"
                 className="aspect-square border-merrbakes-brown flex-col justify-center font-hand"

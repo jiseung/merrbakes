@@ -15,7 +15,8 @@ const config: Config = {
         'merrbakes-green': '#67DFB9',
         'merrbakes-yellow': '#FFE99F',
         'merrbakes-blue': '#78D5D7',
-        'merrbakes-lightgray': '#7A7A7A'
+        'merrbakes-lightgray': '#7A7A7A',
+        'twitch-purple': '#9146ff'
       },
       fontFamily: {
         hand: ['var(--font-patrick-hand-sc)'],
