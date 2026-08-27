@@ -27,7 +27,7 @@ export default function Home() {
       cache: 'no-store'
     });
     const data = await res.json();
-    setKofiItems(data.data);
+    setKofiItems(data.data ?? []);
   }
 
   const [instagramPosts, setInstagramPosts] = useState([]);
@@ -36,7 +36,7 @@ export default function Home() {
       cache: 'no-store'
     });
     const data = await res.json();
-    setInstagramPosts(data.posts);
+    setInstagramPosts(data.posts ?? []);
   }
 
   useEffect(() => {
