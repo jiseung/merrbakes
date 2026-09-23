@@ -8,7 +8,6 @@ import Image from "next/image";
 import Link from "next/link";
 import { productCopy as copy } from "@/content/product";
 import { DropItem, Variant, displayName, slugify, priceToCents, variantDisplayName } from "@/lib/shopItems";
-import { reviews } from "@/content/reviews";
 import { useCart } from "@/lib/cart";
 import StorefrontHeader from "@/components/StorefrontHeader";
 
@@ -19,10 +18,6 @@ const btnPrimary =
 // storefront anchors (#club, #blog, #watch) live on the homepage (/), not this page
 const HOME = "/";
 const home = (href: string) => (href.startsWith("#") ? HOME + href : href);
-
-function Stars({ rating }: { rating: number }) {
-  return <div className="text-merrbakes-yellow text-xl tracking-widest">{"★".repeat(rating)}{"☆".repeat(5 - rating)}</div>;
-}
 
 export default function ProductPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = use(params);
@@ -74,8 +69,6 @@ export default function ProductPage({ params }: { params: Promise<{ slug: string
   // thumbnail strip below has a single (real) thumbnail — activePhoto is
   // wired up for when there's more than one to switch between.
   const [activePhoto, setActivePhoto] = useState(0);
-
-  const itemReviews = reviews.slice(0, 4);
 
   const [added, setAdded] = useState(false);
   function addToCart() {
@@ -184,20 +177,6 @@ export default function ProductPage({ params }: { params: Promise<{ slug: string
                     {copy.kofiLink.label}
                   </a>
                 </div>
-              </div>
-            </div>
-
-            {/* REVIEWS — general reviews, not verified for this specific item (no per-item review data yet) */}
-            <div className="mt-16 pt-10 border-t border-merrbakes-brown/15">
-              <div className="text-merrbakes-berry text-lg font-bold lowercase tracking-wide">{copy.reviews.eyebrow}</div>
-              <div className="grid md:grid-cols-2 gap-5 mt-3">
-                {itemReviews.map((r, i) => (
-                  <div key={i} className="bg-white rounded-2xl p-6 border border-merrbakes-brown/15 shadow-sm">
-                    <Stars rating={5} />
-                    <p className={`${prose} mt-2.5 mb-3.5 text-lg`}>&ldquo;{r.content.trim()}&rdquo;</p>
-                    <div className="text-base font-bold text-merrbakes-brown/60">— {r.author}</div>
-                  </div>
-                ))}
               </div>
             </div>
           </>

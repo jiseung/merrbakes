@@ -1,6 +1,0 @@
-The Storefront
-USP: "not a link hub — a real bakery you can order from."
-
-Structure: Sticky nav (shop / blog / watch) with a persistent "join the club" button and a watch-live pill that only appears when she's actually streaming. A direct, conversion-first hero ("fresh, handmade cookies — shipped to your door") with order + club CTAs and a product collage of the current viral bakes. Then: a "this week's drop" menu grid with a live order-closes countdown; the membership clubs sold properly (cookie / tasting / chocolatier) with an annual-prepay upsell; a free-recipe email lead magnet wired to the real mailing list; a free-recipes / blog teaser (evergreen SEO funnel); real community reviews; a watch-and-hang band (twitch, discord, socials); and a dark footer.
-
-Vibe shift: Turns the link-hub into a conversion-focused storefront. It leads with the transaction (order / subscribe) and treats the stream as the top of the funnel. Built to convert cold traffic from search and short-form, and to grow the two owned, algorithm-proof channels — recurring memberships and the mailing list. Text-only wordmark, no logo mark. Keeps the real pink/brown + Patrick Hand SC identity throughout.

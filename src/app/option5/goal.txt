@@ -1,6 +1,0 @@
-Recipe Blog Hybrid
-USP: "Watch it made. Buy the finished thing. Learn to make it yourself."
-
-Structure: Three clear columns at the top after the hero: "Watch" (Twitch), "Buy" (Ko-fi), "Learn" (tips/recipes section). The recipes section could be a couple of expandable cards with a simple recipe or baking tip from Merr. Shop items are shown alongside the recipe they relate to. Mailing list promise: "Get new recipes + shop drops in your inbox."
-
-Vibe shift: Creates a third value pillar beyond streaming + selling. Attracts an audience that might not be Twitch users at all.

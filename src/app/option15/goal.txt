@@ -1,8 +1,0 @@
-Video Testimonial Hero
-USP: "Watch someone else's reaction before you order"
-
-Structure: A single video review (placeholder for now) is the hero of the page, framed like a phone-recorded reaction clip, with the item mini-card floating beside/below it. Under the hero, a masonry grid of smaller photo+text reviews for the same item fills out the rest of the page.
-
-Vibe shift: Leads with the most persuasive format (a real reaction) instead of the product photo. Everything else on the page supports that one moment.
-
-Note: reviews/media here are mocked (existing text reviews + placeholder photo/video boxes) since per-item review data doesn't exist yet — see the Notion-backed plan in merrbakes.md. Swap in real attached media once that's built.

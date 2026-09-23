@@ -1,6 +1,0 @@
-Seasonal / Moment in Time
-USP: "Right now, this is what's in the oven"
-
-Structure: The hero changes with the season — right now it might say "Spring batch is here: lemon cookies & strawberry brownies." Below: a "What's happening right now" section that combines the live stream status, current shop items, and a pinned Discord message. Everything is framed as ephemeral and current. Mailing list CTA: "Get notified when the season changes."
-
-Vibe shift: Creates a sense that the site is alive and always relevant to now — rewards repeat visits rather than one-time browse.

@@ -25,9 +25,5 @@ export const productCopy = {
     href: "https://ko-fi.com/merrbakes/shop",
   },
 
-  reviews: {
-    eyebrow: "✿ hot takes",
-  },
-
   footer: shopCopy.footer,
 };

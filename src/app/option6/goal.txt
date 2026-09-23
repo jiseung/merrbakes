@@ -1,6 +1,0 @@
-Countdown / Drop Culture
-USP: "Limited batches. Ship fast. Never the same twice."
-
-Structure: Hero is a countdown timer to the next shop drop or stream, big and centered, with the animated logo above it. Below: a "currently available" shelf (Ko-fi items), styled like sneaker drop cards with quantities. Past drops are shown as grayed-out "sold out" cards to create FOMO. Mailing list CTA is prominent: "Be first to know when the next batch drops."
-
-Vibe shift: Urgency and scarcity replaces the always-open link-in-bio feel. Makes each item feel more special and collectible.

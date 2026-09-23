@@ -1,8 +1,0 @@
-Item Detail Page
-USP: "See exactly what you're getting — and what people said after they got it"
-
-Structure: A focused single-item page, not a full homepage. Big product photo + name/price/CTA at the top. Below: a "verified buyers" section — a vertical stack of attached reviews, each with a media slot (photo/video placeholder, swappable for a real customer photo/video later), star rating, and the review text. Closest in spirit to a standard e-commerce product page (Etsy/Amazon-style), applied to one Merrbakes item.
-
-Vibe shift: Treats trust-building as the job of the page, not the shop. The reviews aren't decoration around the item — they're the second half of the pitch, directly under it.
-
-Note: reviews/media here are mocked (existing text reviews + placeholder photo/video boxes) since per-item review data doesn't exist yet — see the Notion-backed plan in merrbakes.md. Swap in real attached media once that's built.

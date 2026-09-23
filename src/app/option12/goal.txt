@@ -1,8 +1,0 @@
-Proof Strip
-USP: "Scroll the proof, then decide"
-
-Structure: Item card sits at the top like normal. Directly underneath, a horizontally-scrolling strip of "proof" tiles — each one a small photo/video placeholder with a short quote overlaid, sized like Instagram Stories. The strip is visually attached to the item (not a separate site-wide reviews section), so it reads as "here's what people said about THIS item" rather than general testimonials.
-
-Vibe shift: Low-commitment browsing — a thumb-scroll of quick proof rather than a wall of text. Works well on mobile where horizontal scroll is a familiar gesture.
-
-Note: reviews/media here are mocked (existing text reviews + placeholder photo/video boxes) since per-item review data doesn't exist yet — see the Notion-backed plan in merrbakes.md. Swap in real attached media once that's built.

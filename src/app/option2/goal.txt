@@ -1,6 +1,0 @@
-The Bakery Menu
-USP: "Handmade to order, shipped with love"
-
-Structure: Designed like an actual printed diner menu — two-column layout with a stitched border, section dividers styled as menu category headers ("Brownies", "Cookies", "Seasonal"). Ko-fi items are menu entries with whimsical descriptions. Reviews appear as "What our regulars say" in a sidebar column. No social feed — just the menu and a mailing list signup at the bottom styled as a comment card ("Leave your email, we'll save you a seat").
-
-Vibe shift: Drops the streamer-hub feel entirely; leans into the artisan food angle. Better conversion focus.

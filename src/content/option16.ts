@@ -31,12 +31,6 @@ export const option16Copy = {
     primaryButton: "order now",
     secondaryButton: "join the club",
     trustLines: ["⭐ loved by 1,000+ viewers", "📦 500+ boxes shipped"],
-    collage: [
-      { name: "Dubai Chewy Cookies", price: "from $30", icon: "🍫", plate: "choc" as Plate },
-      { name: "Meowdeleines", price: "from $18", icon: "🧁", plate: "straw" as Plate },
-      { name: "Butter Tteok", price: "from $14", icon: "🍡", plate: "matcha" as Plate },
-      { name: "Korean Fish Bread", price: "from $12", icon: "🐟", plate: "butter" as Plate },
-    ],
   },
 
   about: {
@@ -64,16 +58,6 @@ export const option16Copy = {
   menu: {
     heading: "✿ check out the menu",
     shopButtonLabel: "visit the shop →",
-    items: [
-      { name: "Dubai Chewy Cookies", description: "Pistachio-kataifi, gooey centre. Limited stock!", price: "$30", icon: "🍫", plate: "choc" as Plate, tag: "limited", limited: true },
-      { name: "Morning Buns", description: "Laminated, cinnamon-sugar crusted. Duo or trio.", price: "$14", icon: "🥐", plate: "butter" as Plate, tag: "back!" },
-      { name: "Meowdeleines", description: "Little cat madeleines. Set of 4 or 8.", price: "$18", icon: "🧁", plate: "straw" as Plate, tag: "fan fave" },
-      { name: "Cosmic Brownies", description: "Fudgy, nostalgic, rainbow-chip topped.", price: "$14", icon: "🍫", plate: "choc" as Plate },
-      { name: "Red Velvet Cookies", description: "Soft, tangy, cream-cheese kissed.", price: "$16", icon: "🍪", plate: "straw" as Plate },
-      { name: "Weekly Menu Box", description: "Merr's pick of the week — a surprise spread.", price: "$36", icon: "🎁", plate: "butter" as Plate, tag: "best value" },
-      { name: "Supreme Croissants", description: "Cookie-butter filled, flaky chaos.", price: "$12", icon: "🥐", plate: "butter" as Plate },
-      { name: "Butter Tteok", description: "Chewy Korean rice cake, browned butter.", price: "$14", icon: "🍡", plate: "matcha" as Plate, tag: "new" },
-    ],
     addButtonLabel: "add +",
     footerLine: "pre-order now → baked fresh live on twitch → shipped directly to your door.",
     footerLinkText: "cookie club members get first dibs & free shipping during cookie club week.",
@@ -83,13 +67,6 @@ export const option16Copy = {
     heading: "✿ the membership clubs",
     subhead: "New curated box of treats every month - here's a peek at what past boxes looked like",
     ctaButton: "see membership tiers",
-    // fallback shown before /api/notion-club resolves (or if it's empty) — kept in
-    // sync shape with the "merrbakes.com monthly menus" Notion database (Date/Title/Image).
-    pastMenus: [
-      { month: "july 2026", theme: "beach bum era" },
-      { month: "june 2026", theme: "strawberry season" },
-      { month: "may 2026", theme: "matcha & mochi" },
-    ],
   },
 
   emailMagnet: {

@@ -1,6 +1,0 @@
-Choose Your Own Adventure
-USP: "Whether you're here to watch, eat, or hang — you're in the right place"
-
-Structure: Hero presents three big illustrated buttons: Watch (Twitch), Order (Ko-fi shop), Join (Discord). Clicking each smoothly scrolls to or reveals that section — the rest of the page stays hidden until you pick. Each section is then a focused, full-attention experience for that one goal rather than a busy all-in-one scroll. A subtle nav lets you switch between paths.
-
-Vibe shift: Acknowledges that the audience has different needs and routes each person to exactly what they came for. Reduces overwhelm and increases conversion clarity.
