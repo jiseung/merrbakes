@@ -1,0 +1,6 @@
+The Virtual Bakery Counter
+USP: "The only bakery open whenever she's streaming"
+
+Structure: Full-screen hero is the live Twitch embed, styled to look like a bakery window — a OPEN / CLOSED sign in the corner based on live status. Below the fold: a literal bakery counter layout with "today's specials" (Ko-fi shop items) displayed as chalkboard-style cards. Footer has the social links styled as a receipt tape printout.
+
+Vibe shift: Makes the stream the product, not a secondary feature. Positions the shop as an extension of the live experience.

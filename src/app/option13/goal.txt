@@ -1,0 +1,8 @@
+Spotlight Carousel
+USP: "One story at a time, told in full"
+
+Structure: Split-screen layout — the item photo fills the left half, permanently in view. The right half is a single "spotlighted" review at a time (full text, rating, media placeholder, author), with dot navigation to step through the other attached reviews for that item. Only one review is ever shown at full size, rather than many small ones.
+
+Vibe shift: Depth over breadth — each review gets its full moment instead of being compressed into a tile. Better for reviews with real substance (a story, not just "10/10").
+
+Note: reviews/media here are mocked (existing text reviews + placeholder photo/video boxes) since per-item review data doesn't exist yet — see the Notion-backed plan in merrbakes.md. Swap in real attached media once that's built.

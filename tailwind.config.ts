@@ -10,6 +10,8 @@ const config: Config = {
     extend: {
       colors: {
         'merrbakes-pink': '#F4D9E1',
+        'merrbakes-berry': '#E15C7C',
+        'merrbakes-berry-ink': '#C6425F',
         'merrbakes-brown': '#765C4B',
         'merrbakes-gray': '#424651',
         'merrbakes-green': '#67DFB9',

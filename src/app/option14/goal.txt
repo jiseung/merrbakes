@@ -1,0 +1,8 @@
+Verified Purchase Accordion
+USP: "See the receipts, one click at a time"
+
+Structure: Item card up top with a trust badge ("people keep reordering this"). Below, reviews are collapsed into an accordion list — each row shows just author + rating + a one-line snippet until clicked, then expands to reveal the full text and attached media. Etsy/Amazon "verified purchase" review-list conventions, scoped to one item.
+
+Vibe shift: Compact by default, dense with proof if you dig in. Good for an item with many reviews where a full always-expanded list would be too long.
+
+Note: reviews/media here are mocked (existing text reviews + placeholder photo/video boxes) since per-item review data doesn't exist yet — see the Notion-backed plan in merrbakes.md. Swap in real attached media once that's built.
