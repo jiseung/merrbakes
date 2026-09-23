@@ -28,7 +28,7 @@ const HOME = "/";
 const home = (href: string) => (href.startsWith("#") ? HOME + href : href);
 
 // shared by the main menu grid and the merch grid below it
-function ProductCard({ item, highlighted, onAdd }: { item: DropItem; highlighted?: boolean; onAdd: (item: DropItem) => void }) {
+function ProductCard({ item, highlighted, onAdd, addDisabled }: { item: DropItem; highlighted?: boolean; onAdd: (item: DropItem) => void; addDisabled?: boolean }) {
   return (
     <div className={`relative bg-white rounded-2xl overflow-hidden hover:-translate-y-1 hover:shadow-md transition flex flex-col h-72 ${highlighted ? "ring ring-merrbakes-berry shadow-md" : "border border-merrbakes-brown/15 shadow-sm"}`}>
       <Link href={`/shop/${slugify(item.name)}`} className="absolute inset-0 z-10" aria-label={item.name} />
@@ -44,7 +44,8 @@ function ProductCard({ item, highlighted, onAdd }: { item: DropItem; highlighted
         )}
         <button type="button"
            onClick={() => onAdd(item)}
-           className="absolute bottom-2.5 right-2.5 z-20 bg-merrbakes-berry text-white rounded-full px-4 py-1.5 text-lg font-bold hover:opacity-85 transition shadow-sm">{o16.menu.addButtonLabel}</button>
+           disabled={addDisabled}
+           className="absolute bottom-2.5 right-2.5 z-20 bg-merrbakes-berry text-white rounded-full px-4 py-1.5 text-lg font-bold hover:opacity-85 transition shadow-sm disabled:opacity-60 disabled:animate-pulse disabled:cursor-wait">{o16.menu.addButtonLabel}</button>
       </div>
       <div className="relative flex-1 px-3 py-2">
         <div className="text-lg font-bold leading-tight line-clamp-2 pr-14">{item.name}</div>
@@ -70,38 +71,38 @@ export default function ShopPage() {
   const { add } = useCart();
 
   // full menu — live from Notion (all Shop Items rows, no cap — this is the page
-  // /option16's teaser grid links out to). Starts empty and shows skeleton
-  // placeholder cards until the fetch resolves, rather than fake copy.
-  const [menuItems, setMenuItems] = useState<DropItem[]>([]);
+  // homepage's teaser grid links out to). null = still loading (skeleton cards);
+  // [] = loaded but empty / fetch failed (no skeletons pulsing forever).
+  const [menuItems, setMenuItems] = useState<DropItem[] | null>(null);
   useEffect(() => {
     fetch("/api/notion-shop", { cache: "no-store" })
       .then((res) => res.json())
-      .then((d) => {
-        if (Array.isArray(d.data) && d.data.length > 0) setMenuItems(d.data);
-      })
-      .catch(() => {});
+      .then((d) => setMenuItems(Array.isArray(d.data) ? d.data : []))
+      .catch(() => setMenuItems([]));
   }, []);
 
   // variants — needed so the grid's quick "add" button can add the right priced
   // SKU (an item's Default variant) instead of a flat item-level price.
+  // Add buttons stay disabled until these arrive (they'd silently do nothing otherwise).
   const [variants, setVariants] = useState<Variant[]>([]);
+  const [variantsLoaded, setVariantsLoaded] = useState(false);
   useEffect(() => {
     fetch("/api/notion-variants", { cache: "no-store" })
       .then((res) => res.json())
       .then((d) => { if (Array.isArray(d.data)) setVariants(d.data); })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setVariantsLoaded(true));
   }, []);
 
   // "see what's baking this month" toggle — same calendar image/source as
   // option16's watch section, just shown/hidden here instead of always-visible.
-  const [calendar, setCalendar] = useState<CalendarMonth | null>(null);
+  // undefined = still loading (skeleton if the toggle's open); null = no calendar.
+  const [calendar, setCalendar] = useState<CalendarMonth | null | undefined>(undefined);
   useEffect(() => {
     fetch("/api/notion-calendar", { cache: "no-store" })
       .then((res) => res.json())
-      .then((d) => {
-        if (Array.isArray(d.data) && d.data.length > 0) setCalendar(d.data[0]);
-      })
-      .catch(() => {});
+      .then((d) => setCalendar(Array.isArray(d.data) && d.data.length > 0 ? d.data[0] : null))
+      .catch(() => setCalendar(null));
   }, []);
   const [showCalendar, setShowCalendar] = useState(false);
   // lets other pages deep-link straight to the open calendar (e.g. /shop?calendar=1
@@ -146,6 +147,7 @@ export default function ShopPage() {
   // order rather than jumping around.
   const isOnSchedule = (item: DropItem) => !!item.id && onScheduleIds.has(item.id);
   const sortedMenuItems = useMemo(() => {
+    if (!menuItems) return [];
     if (!showCalendar) return menuItems;
     return [...menuItems].sort((a, b) => Number(isOnSchedule(b)) - Number(isOnSchedule(a)));
   }, [menuItems, onScheduleIds, showCalendar]);
@@ -177,7 +179,7 @@ export default function ShopPage() {
   }, [sortedMenuItems, showAllItems, onScheduleIds, showCalendar]);
 
   function addDefaultVariant(item: DropItem) {
-    if (!item.id) return; // still on the static fallback, no real id to match yet
+    if (!item.id) return;
     const itemVariants = variants.filter((v) => v.shopItemId === item.id);
     const variant = itemVariants.find((v) => v.isDefault) ?? itemVariants[0];
     if (!variant) return;
@@ -251,7 +253,7 @@ export default function ShopPage() {
           <>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {merchItems.map((it) => (
-                <ProductCard key={it.name} item={it} onAdd={addDefaultVariant} />
+                <ProductCard key={it.name} item={it} onAdd={addDefaultVariant} addDisabled={!variantsLoaded} />
               ))}
             </div>
             {digitalItems.length > 0 && (
@@ -260,7 +262,7 @@ export default function ShopPage() {
                 <p className={`${prose} text-lg text-merrbakes-brown/75 mt-2 mb-6`}>{copy.digital.subhead}</p>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   {digitalItems.map((it) => (
-                    <ProductCard key={it.name} item={it} onAdd={addDefaultVariant} />
+                    <ProductCard key={it.name} item={it} onAdd={addDefaultVariant} addDisabled={!variantsLoaded} />
                   ))}
                 </div>
               </div>
@@ -268,22 +270,26 @@ export default function ShopPage() {
           </>
         ) : (
           <>
+            {showCalendar && calendar === undefined && (
+              <div className="w-full md:w-1/2 aspect-[4/3] rounded-2xl bg-white/60 animate-pulse mb-8 mx-auto" />
+            )}
             {showCalendar && calendar?.photoUrl && (
               // eslint-disable-next-line @next/next/no-img-element -- unknown dimensions from Notion;
               // full width on mobile, capped narrower on md+ so it doesn't dominate the page
               <img src={calendar.photoUrl} alt={`stream schedule — ${formatMonth(calendar.month)}`} className="w-full md:w-1/2 h-auto rounded-2xl shadow-md ring ring-merrbakes-berry mb-8 mx-auto" />
             )}
-            {showCalendar && menuItems.length > 0 && visibleItems.length === 0 && (
+            {showCalendar && !!menuItems?.length && variantsLoaded && visibleItems.length === 0 && (
               <p className={`${prose} text-center text-merrbakes-brown/60 text-lg mb-8`}>{copy.calendarToggle.emptyMessage}</p>
             )}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {menuItems.length === 0
+              {/* with the calendar open, which items show depends on variants' On Schedule flags */}
+              {menuItems === null || (showCalendar && !variantsLoaded)
                 ? Array.from({ length: 8 }).map((_, i) => <ProductCardSkeleton key={i} />)
                 : visibleItems.map((it) => (
-                    <ProductCard key={it.name} item={it} highlighted={showCalendar && isOnSchedule(it)} onAdd={addDefaultVariant} />
+                    <ProductCard key={it.name} item={it} highlighted={showCalendar && isOnSchedule(it)} onAdd={addDefaultVariant} addDisabled={!variantsLoaded} />
                   ))}
             </div>
-            {hiddenCount > 0 && (
+            {hiddenCount > 0 && !(showCalendar && !variantsLoaded) && (
               <div className="text-center mt-6">
                 <button type="button" onClick={() => setShowAllItems(true)}
                    className="inline-flex items-center gap-2 bg-white text-merrbakes-brown border-2 border-merrbakes-brown/30 rounded-full px-6 py-3 text-xl font-bold hover:border-merrbakes-berry transition">

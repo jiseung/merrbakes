@@ -1,10 +1,8 @@
 "use client";
 // /shop/[slug] — a single-product detail page, linked from the /shop grid.
-// Prototype note: Notion's Shop Items database only has one Photo, so the extra
-// photo-gallery slots below are still a UI mockup (same spirit as the mocked
-// reviews in /option11) — but the variant picker is real data now, see
-// merrbakes.md "variant-level checkout wiring". Copy lives in
-// src/content/product.ts — edit that file for text changes.
+// Notion's Shop Items database only has one Photo per item so far, so the
+// thumbnail strip has a single (real) thumbnail; the variant picker is real data.
+// Copy lives in src/content/product.ts — edit that file for text changes.
 import { useState, useEffect, use } from "react";
 import Image from "next/image";
 import Link from "next/link";
@@ -48,12 +46,15 @@ export default function ProductPage({ params }: { params: Promise<{ slug: string
       .catch(() => setItems([]));
   }, []);
 
+  // price, option picker and add button show loading states until these arrive.
   const [allVariants, setAllVariants] = useState<Variant[]>([]);
+  const [variantsLoaded, setVariantsLoaded] = useState(false);
   useEffect(() => {
     fetch("/api/notion-variants", { cache: "no-store" })
       .then((res) => res.json())
       .then((d) => { if (Array.isArray(d.data)) setAllVariants(d.data); })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setVariantsLoaded(true));
   }, []);
 
   const item = items?.find((it) => slugify(it.name) === slug) ?? null;
@@ -139,7 +140,11 @@ export default function ProductPage({ params }: { params: Promise<{ slug: string
               {/* details */}
               <div>
                 <h1 className="text-4xl font-black">{displayName(item.name)}</h1>
-                <div className="text-2xl font-black text-merrbakes-berry mt-2">{selectedVariant?.price ?? item.price}</div>
+                {variantsLoaded ? (
+                  <div className="text-2xl font-black text-merrbakes-berry mt-2">{selectedVariant?.price ?? item.price}</div>
+                ) : (
+                  <div className="h-8 w-20 mt-2 rounded-full bg-white/60 animate-pulse" />
+                )}
                 <div className={`${prose} inline-flex items-center gap-1.5 text-sm font-bold text-merrbakes-brown/70 bg-merrbakes-yellow/40 rounded-full px-3 py-1 mt-2`}>
                   {copy.shipsNote}
                 </div>
@@ -148,6 +153,11 @@ export default function ProductPage({ params }: { params: Promise<{ slug: string
                   {(item.description ?? "").split(/\n\s*\n/).map((p, i) => <p key={i}>{p.trim()}</p>)}
                 </div>
 
+                {!variantsLoaded && (
+                  <div className="mt-7 flex flex-wrap gap-2">
+                    {Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-10 w-28 rounded-full bg-white/60 animate-pulse" />)}
+                  </div>
+                )}
                 {itemVariants.length > 1 && (
                   <div className="mt-7">
                     <div className="text-lg font-bold">{copy.variantPickerLabel}</div>
@@ -165,7 +175,8 @@ export default function ProductPage({ params }: { params: Promise<{ slug: string
                 )}
 
                 <div className="mt-7 flex flex-col gap-2 items-start">
-                  <button type="button" onClick={addToCart} className={btnPrimary}>
+                  <button type="button" onClick={addToCart} disabled={!selectedVariant}
+                          className={`${btnPrimary} disabled:opacity-60 disabled:cursor-wait ${variantsLoaded ? "" : "disabled:animate-pulse"}`}>
                     {added ? copy.addedButtonLabel : copy.addButtonLabel}
                   </button>
                   <a href={copy.kofiLink.href} target="_blank" rel="noreferrer"
@@ -196,8 +207,11 @@ export default function ProductPage({ params }: { params: Promise<{ slug: string
       {/* FOOTER */}
       <footer className="bg-merrbakes-brown text-merrbakes-pink">
         <div className="max-w-6xl mx-auto px-5 py-12 flex flex-wrap justify-between gap-8">
-          <div className="max-w-xs">
-            <div className="text-3xl font-black text-merrbakes-pink">{copy.footer.logo}</div>
+          <div className="max-w-xs flex flex-col items-center text-center">
+            <div className="text-[45px] leading-none font-black text-merrbakes-pink">{copy.footer.logo}</div>
+            <div className="w-32 h-32 rounded-full relative overflow-hidden border-2 border-merrbakes-pink/40 mt-3">
+              <Image src="/merr-photo.png" alt="Merr" fill sizes="128px" className="object-cover" style={{ objectPosition: "center 25%" }} />
+            </div>
           </div>
           <div className="flex gap-12 flex-wrap text-lg">
             {copy.footer.columns.map((col) => (

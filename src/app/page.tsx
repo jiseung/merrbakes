@@ -76,43 +76,43 @@ const h2 = "text-4xl font-black mt-1";
 export default function Home() {
   const { add } = useCart();
 
-  // hero collage — live from Notion (Featured in hero). Starts empty and shows
-  // skeleton placeholder cards until the fetch resolves, rather than fake copy.
-  const [heroItems, setHeroItems] = useState<HeroItem[]>([]);
+  // hero collage — live from Notion (Featured in hero). null = still loading
+  // (skeleton cards); [] = loaded but nothing featured / fetch failed (collage hidden
+  // rather than skeletons pulsing forever).
+  const [heroItems, setHeroItems] = useState<HeroItem[] | null>(null);
   useEffect(() => {
     fetch("/api/notion-shop?hero=true", { cache: "no-store" })
       .then((res) => res.json())
-      .then((d) => {
-        if (Array.isArray(d.data) && d.data.length > 0) setHeroItems(d.data);
-      })
-      .catch(() => {});
+      .then((d) => setHeroItems(Array.isArray(d.data) ? d.data : []))
+      .catch(() => setHeroItems([]));
   }, []);
 
   // menu section — live from Notion (all Shop Items rows), capped to 8 rows here since
   // this is a teaser section (the "browse full menu" button links to /shop for the rest).
-  // Starts empty and shows skeleton placeholder cards until the fetch resolves.
-  const [menuItems, setMenuItems] = useState<DropItem[]>([]);
+  // null = still loading (skeleton cards); [] = loaded but empty / fetch failed.
+  const [menuItems, setMenuItems] = useState<DropItem[] | null>(null);
   useEffect(() => {
     fetch("/api/notion-shop", { cache: "no-store" })
       .then((res) => res.json())
-      .then((d) => {
-        if (Array.isArray(d.data) && d.data.length > 0) setMenuItems(d.data);
-      })
-      .catch(() => {});
+      .then((d) => setMenuItems(Array.isArray(d.data) ? d.data : []))
+      .catch(() => setMenuItems([]));
   }, []);
 
   // variants — needed so the menu grid's quick "add" button can add the right
   // priced SKU (an item's Default variant) instead of a flat item-level price.
+  // Add buttons stay disabled until these arrive (they'd silently do nothing otherwise).
   const [variants, setVariants] = useState<Variant[]>([]);
+  const [variantsLoaded, setVariantsLoaded] = useState(false);
   useEffect(() => {
     fetch("/api/notion-variants", { cache: "no-store" })
       .then((res) => res.json())
       .then((d) => { if (Array.isArray(d.data)) setVariants(d.data); })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setVariantsLoaded(true));
   }, []);
 
   function addDefaultVariant(item: DropItem) {
-    if (!item.id) return; // still on the static fallback, no real id to match yet
+    if (!item.id) return;
     const itemVariants = variants.filter((v) => v.shopItemId === item.id);
     const variant = itemVariants.find((v) => v.isDefault) ?? itemVariants[0];
     if (!variant) return;
@@ -129,28 +129,23 @@ export default function Home() {
   }
 
   // club section's past-menu showcase — live from Notion ("merrbakes.com monthly menus").
-  // Starts from the static fallback in option16.ts so the grid isn't empty before the fetch resolves.
-  const [pastMenus, setPastMenus] = useState<ClubMenu[]>(copy.club.pastMenus);
+  // null = still loading (skeleton tiles); [] = loaded but empty / fetch failed (grid hidden).
+  const [pastMenus, setPastMenus] = useState<ClubMenu[] | null>(null);
   useEffect(() => {
     fetch("/api/notion-club", { cache: "no-store" })
       .then((res) => res.json())
-      .then((d) => {
-        if (Array.isArray(d.data) && d.data.length > 0) setPastMenus(d.data);
-      })
-      .catch(() => {});
+      .then((d) => setPastMenus(Array.isArray(d.data) ? d.data : []))
+      .catch(() => setPastMenus([]));
   }, []);
 
   // watch section's this-month calendar graphic — live from Notion ("merrbakes.com stream calendar").
-  // No static fallback here (unlike the sections above) since there's nothing sensible to show
-  // in place of an actual calendar image; it just doesn't render until the fetch resolves.
-  const [calendar, setCalendar] = useState<CalendarMonth | null>(null);
+  // undefined = still loading (skeleton block); null = loaded, no calendar (nothing rendered).
+  const [calendar, setCalendar] = useState<CalendarMonth | null | undefined>(undefined);
   useEffect(() => {
     fetch("/api/notion-calendar", { cache: "no-store" })
       .then((res) => res.json())
-      .then((d) => {
-        if (Array.isArray(d.data) && d.data.length > 0) setCalendar(d.data[0]);
-      })
-      .catch(() => {});
+      .then((d) => setCalendar(Array.isArray(d.data) && d.data.length > 0 ? d.data[0] : null))
+      .catch(() => setCalendar(null));
   }, []);
 
   // mailing-list lead magnet — wired to the real /api/join
@@ -208,8 +203,8 @@ export default function Home() {
             <span>{copy.hero.trustLines[1]}</span>
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-4" aria-hidden>
-          {heroItems.length === 0
+        {heroItems?.length !== 0 && <div className="grid grid-cols-2 gap-4" aria-hidden>
+          {heroItems === null
             ? Array.from({ length: 4 }).map((_, i) => (
                 <div key={i} className={`bg-white rounded-3xl p-3.5 border border-merrbakes-brown/15 shadow-md ${i === 1 ? "mt-6" : i === 3 ? "-mt-2" : ""}`}
                      style={{ transform: `rotate(${[-2, 1.5, 1, -1.5][i]}deg)` }}>
@@ -232,7 +227,7 @@ export default function Home() {
                   <div className="text-merrbakes-berry text-lg font-bold">{c.price}</div>
                 </div>
               ))}
-        </div>
+        </div>}
       </section>
 
       {/* ABOUT */}
@@ -317,8 +312,8 @@ export default function Home() {
             </div>
             <a href="/shop" className={btnPrimary}>{copy.menu.shopButtonLabel}</a>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {menuItems.length === 0
+          {menuItems?.length !== 0 && <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {menuItems === null
               ? Array.from({ length: 8 }).map((_, i) => (
                   <div key={i} className="bg-white rounded-2xl overflow-hidden border border-merrbakes-brown/15 shadow-sm flex flex-col h-72">
                     <div className="flex-[3] bg-merrbakes-pink/30 animate-pulse" />
@@ -343,7 +338,8 @@ export default function Home() {
                       )}
                       <button type="button"
                          onClick={() => addDefaultVariant(it)}
-                         className="absolute bottom-2.5 right-2.5 z-20 bg-merrbakes-berry text-white rounded-full px-4 py-1.5 text-lg font-bold hover:opacity-85 transition shadow-sm">{copy.menu.addButtonLabel}</button>
+                         disabled={!variantsLoaded}
+                         className="absolute bottom-2.5 right-2.5 z-20 bg-merrbakes-berry text-white rounded-full px-4 py-1.5 text-lg font-bold hover:opacity-85 transition shadow-sm disabled:opacity-60 disabled:animate-pulse disabled:cursor-wait">{copy.menu.addButtonLabel}</button>
                     </div>
                     <div className="relative flex-1 px-3 py-2">
                       <div className="text-lg font-bold leading-tight line-clamp-2 pr-14">{it.name}</div>
@@ -351,7 +347,7 @@ export default function Home() {
                     </div>
                   </div>
                 ))}
-          </div>
+          </div>}
           <p className={`${prose} mt-6 text-merrbakes-brown/70 text-lg`}>
             {copy.menu.footerLine}{" "}
             <a href="/club" className="font-bold text-merrbakes-berry underline decoration-merrbakes-yellow decoration-4">{copy.menu.footerLinkText}</a>
@@ -368,8 +364,13 @@ export default function Home() {
               {copy.club.subhead}
             </p>
           </div>
-          <div className="grid md:grid-cols-3 gap-6 items-start">
-            {pastMenus.map((m) => (
+          {pastMenus?.length !== 0 && <div className="grid md:grid-cols-3 gap-6 items-start">
+            {pastMenus === null ? Array.from({ length: 3 }).map((_, i) => (
+              <div key={i}>
+                <div className="aspect-square rounded-2xl bg-white/50 animate-pulse" />
+                <div className="h-5 w-1/3 mx-auto mt-3 rounded-full bg-white/50 animate-pulse" />
+              </div>
+            )) : pastMenus.map((m) => (
               <div key={m.month}>
                 {m.photoUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element -- unknown per-photo
@@ -381,7 +382,7 @@ export default function Home() {
                 <div className="text-merrbakes-brown text-lg font-bold lowercase tracking-wide mt-3 text-center">{formatMonth(m.month)}</div>
               </div>
             ))}
-          </div>
+          </div>}
           <div className="text-center mt-8">
             <a href="/club" className={btnPrimary}>{copy.club.ctaButton}</a>
           </div>
@@ -429,6 +430,9 @@ export default function Home() {
           <p className={`${prose} text-xl text-merrbakes-brown/75 mt-3`}>
             {copy.watch.subhead}
           </p>
+          {calendar === undefined && (
+            <div className="w-full aspect-[4/3] rounded-2xl bg-white/60 animate-pulse mt-7" />
+          )}
           {calendar?.photoUrl && (
             // eslint-disable-next-line @next/next/no-img-element -- unknown dimensions from Notion;
             // a plain img shows it uncropped at its own aspect ratio (same approach as the club photos)
