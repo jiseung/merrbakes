@@ -1,7 +1,7 @@
-// Copy for /option16 ("The Storefront"). This is the file to edit for text
+// Copy for the homepage (/, formerly /option16 "The Storefront"). This is the file to edit for text
 // changes — labels, headings, menu/tier/post copy, button text, etc.
 // Saving this file hot-reloads the page like any other source file.
-// Layout, styling, and behavior live in src/app/option16/page.tsx.
+// Layout, styling, and behavior live in src/app/page.tsx.
 
 export type Plate = "choc" | "straw" | "butter" | "matcha";
 
@@ -49,7 +49,7 @@ export const option16Copy = {
       "Hope to talk to you soon!"
     ],
     // row of small icon buttons below the bio, in display order. Icon per entry is
-    // matched by position in src/app/option16/page.tsx (aboutSocialIcons).
+    // matched by position in src/app/page.tsx (aboutSocialIcons).
     socials: [
       { label: "twitch", href: "https://twitch.tv/merrbakes", tooltip: "Twitch: watch Merr live" },
       { label: "youtube", href: "https://www.youtube.com/@MerrBakes", tooltip: "YouTube: funny clips & livestreams" },

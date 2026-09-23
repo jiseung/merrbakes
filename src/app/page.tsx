@@ -1,195 +1,472 @@
 "use client";
-import Script from 'next/script';
-import {useState, useEffect, useRef} from 'react';
-import Image from 'next/image';
-import KofiItem from "@/components/KofiItem";
-import Card from "@/components/Card";
-import { reviews } from "@/content/reviews";
-import ReviewItem from "@/components/ReviewItem";
-import InstagramItem from "@/components/InstagramItem";
-import MailingListItem from "@/components/MailingListItem";
-import DiscordItems from "@/components/DiscordItems";
-import Menu from "@/components/Menu";
-import { InstagramAPIResponseType, InstagramItemType} from "@/app/api/types";
-import TwitchViewer from "@/components/TwitchViewer";
+// Homepage (was /option16, "The Storefront" — moved to / on 2026-09-23)
+// Ported from the concept redesign artifact: a conversion-first landing page
+// (weekly menu, membership clubs, mailing-list lead magnet).
+// Copy lives in src/content/option16.ts — edit that file for text changes.
+import { useState, useEffect, CSSProperties, ReactNode } from "react";
+import Image from "next/image";
+import Link from "next/link";
+import { FaTwitch, FaDiscord, FaTiktok, FaInstagram, FaYoutube } from "react-icons/fa";
+import { SiKofi } from "react-icons/si";
+import { option16Copy as copy, Plate } from "@/content/option16";
+import { DropItem, Variant, displayName, priceToCents, variantDisplayName, slugify } from "@/lib/shopItems";
+import { ClubMenu } from "@/lib/clubItems";
+import { CalendarMonth } from "@/lib/calendar";
+import { formatMonth } from "@/lib/format";
+import { useCart } from "@/lib/cart";
+import StorefrontHeader from "@/components/StorefrontHeader";
+
+function ThroneIcon() {
+  return <Image src="/throne.png" alt="Throne" width={32} height={27} className="object-contain" />;
+}
+// order matches copy.about.socials (twitch, youtube, tiktok, instagram, discord, ko-fi, throne)
+const aboutSocialIcons = [FaTwitch, FaYoutube, FaTiktok, FaInstagram, FaDiscord, SiKofi, ThroneIcon];
+
+// circular social/support icon button with a name tag that pops up underneath on hover
+function SocialButton({ href, ariaLabel, tooltip, className, children }: {
+  href: string; ariaLabel: string; tooltip: string; className: string; children: ReactNode;
+}) {
+  return (
+    <div className="relative group">
+      <a href={href} target="_blank" rel="noreferrer" aria-label={ariaLabel} className={className}>
+        {children}
+      </a>
+      <span
+        className="pointer-events-none absolute left-1/2 top-full z-20 mt-2 -translate-x-1/2 whitespace-nowrap rounded-full bg-merrbakes-brown px-3 py-1 text-sm font-bold text-merrbakes-pink opacity-0 scale-95 transition group-hover:opacity-100 group-hover:scale-100">
+        {tooltip}
+      </span>
+    </div>
+  );
+}
+
+type HeroItem = { name: string; price: string; photoUrl: string | null; icon?: string; plate?: Plate };
+
+const plates: Record<Plate, string> = {
+  choc: "radial-gradient(circle at 32% 28%,#c98a5e,transparent 55%),linear-gradient(140deg,#6b4429,#4a2c17)",
+  straw: "radial-gradient(circle at 30% 30%,#ffd9e2,transparent 55%),linear-gradient(140deg,#f5a9c0,#e06a92)",
+  butter: "radial-gradient(circle at 30% 30%,#ffe9b0,transparent 55%),linear-gradient(140deg,#f0c869,#d99a3c)",
+  matcha: "radial-gradient(circle at 30% 30%,#d7ecc4,transparent 55%),linear-gradient(140deg,#9cc47b,#5f9e6a)",
+};
+
+// 5-pointed star path, points up, centered at (cx, cy)
+function star5(cx: number, cy: number, rOuter: number, rInner: number): string {
+  const pts: string[] = [];
+  for (let i = 0; i < 10; i++) {
+    const angle = (-90 + i * 36) * (Math.PI / 180);
+    const r = i % 2 === 0 ? rOuter : rInner;
+    const x = (cx + r * Math.cos(angle)).toFixed(2);
+    const y = (cy + r * Math.sin(angle)).toFixed(2);
+    pts.push(`${x},${y}`);
+  }
+  return `M${pts[0]} L${pts.slice(1).join(" L")} Z`;
+}
+
+// thin highlighter-underline (matches the artifact's .under stripe, not a full box)
+const hl: CSSProperties = { background: "linear-gradient(transparent 60%, #FFE99F 60%, #FFE99F 92%, transparent 92%)" };
+
+// short UI text is handwritten (default font-hand); long prose uses a clean sans (like the artifact)
+const prose = "font-sans";
+const btnPrimary =
+  "inline-flex items-center gap-2 bg-merrbakes-berry text-white rounded-full px-6 py-3 text-xl font-bold hover:opacity-85 transition shadow-sm";
+const btnGhost =
+  "inline-flex items-center gap-2 bg-white text-merrbakes-brown border-2 border-merrbakes-brown/60 rounded-full px-6 py-3 text-xl font-bold hover:border-merrbakes-berry transition";
+const eyebrow = "text-merrbakes-berry text-lg font-bold lowercase tracking-wide";
+const h2 = "text-4xl font-black mt-1";
 
 export default function Home() {
-  const [isLoading, setIsLoading] = useState(true);
+  const { add } = useCart();
+
+  // hero collage — live from Notion (Featured in hero). Starts empty and shows
+  // skeleton placeholder cards until the fetch resolves, rather than fake copy.
+  const [heroItems, setHeroItems] = useState<HeroItem[]>([]);
   useEffect(() => {
-    setTimeout(() => {
-      setIsLoading(false);
-    }, 1000);
+    fetch("/api/notion-shop?hero=true", { cache: "no-store" })
+      .then((res) => res.json())
+      .then((d) => {
+        if (Array.isArray(d.data) && d.data.length > 0) setHeroItems(d.data);
+      })
+      .catch(() => {});
   }, []);
 
-  const [kofiItems, setKofiItems] = useState([]);
-  async function kofi() {
-    const res = await fetch('/api/kofi', {
-      cache: 'no-store'
-    });
-    const data = await res.json();
-    setKofiItems(data.data ?? []);
-  }
-
-  const [instagramPosts, setInstagramPosts] = useState([]);
-  async function instagram() {
-    const res = await fetch('/api/instagram', {
-      cache: 'no-store'
-    });
-    const data = await res.json();
-    setInstagramPosts(data.posts ?? []);
-  }
-
+  // menu section — live from Notion (all Shop Items rows), capped to 8 rows here since
+  // this is a teaser section (the "browse full menu" button links to /shop for the rest).
+  // Starts empty and shows skeleton placeholder cards until the fetch resolves.
+  const [menuItems, setMenuItems] = useState<DropItem[]>([]);
   useEffect(() => {
-    kofi();
-    instagram();
-  },[]);
+    fetch("/api/notion-shop", { cache: "no-store" })
+      .then((res) => res.json())
+      .then((d) => {
+        if (Array.isArray(d.data) && d.data.length > 0) setMenuItems(d.data);
+      })
+      .catch(() => {});
+  }, []);
 
-  function scrollTo(id: string) {
-    document.getElementById(id)?.scrollIntoView({behavior: 'smooth'});
+  // variants — needed so the menu grid's quick "add" button can add the right
+  // priced SKU (an item's Default variant) instead of a flat item-level price.
+  const [variants, setVariants] = useState<Variant[]>([]);
+  useEffect(() => {
+    fetch("/api/notion-variants", { cache: "no-store" })
+      .then((res) => res.json())
+      .then((d) => { if (Array.isArray(d.data)) setVariants(d.data); })
+      .catch(() => {});
+  }, []);
+
+  function addDefaultVariant(item: DropItem) {
+    if (!item.id) return; // still on the static fallback, no real id to match yet
+    const itemVariants = variants.filter((v) => v.shopItemId === item.id);
+    const variant = itemVariants.find((v) => v.isDefault) ?? itemVariants[0];
+    if (!variant) return;
+    add({
+      variantId: variant.id,
+      name: variantDisplayName(displayName(item.name), variant.name, itemVariants.length),
+      slug: slugify(item.name),
+      price: variant.price,
+      priceCents: priceToCents(variant.price),
+      photoUrl: item.photoUrl ?? null,
+      icon: item.icon,
+      plate: item.plate,
+    });
   }
 
+  // club section's past-menu showcase — live from Notion ("merrbakes.com monthly menus").
+  // Starts from the static fallback in option16.ts so the grid isn't empty before the fetch resolves.
+  const [pastMenus, setPastMenus] = useState<ClubMenu[]>(copy.club.pastMenus);
+  useEffect(() => {
+    fetch("/api/notion-club", { cache: "no-store" })
+      .then((res) => res.json())
+      .then((d) => {
+        if (Array.isArray(d.data) && d.data.length > 0) setPastMenus(d.data);
+      })
+      .catch(() => {});
+  }, []);
 
+  // watch section's this-month calendar graphic — live from Notion ("merrbakes.com stream calendar").
+  // No static fallback here (unlike the sections above) since there's nothing sensible to show
+  // in place of an actual calendar image; it just doesn't render until the fetch resolves.
+  const [calendar, setCalendar] = useState<CalendarMonth | null>(null);
+  useEffect(() => {
+    fetch("/api/notion-calendar", { cache: "no-store" })
+      .then((res) => res.json())
+      .then((d) => {
+        if (Array.isArray(d.data) && d.data.length > 0) setCalendar(d.data[0]);
+      })
+      .catch(() => {});
+  }, []);
+
+  // mailing-list lead magnet — wired to the real /api/join
+  const [email, setEmail] = useState("");
+  const [sendRecipe, setSendRecipe] = useState(true);
+  const [joined, setJoined] = useState(false);
+  const [err, setErr] = useState("");
+  async function join() {
+    if (!email || email.indexOf("@") < 1) { setErr(copy.emailMagnet.errorBadEmail); return; }
+    setErr("");
+    try {
+      const res = await fetch("/api/join", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json();
+      if (data.success) setJoined(true);
+      else setErr(copy.emailMagnet.errorSubmitFailed);
+    } catch {
+      setErr(copy.emailMagnet.errorSubmitFailed);
+    }
+  }
 
   return (
-    <>
-      <Script
-        src="https://embed.twitch.tv/embed/v1.js"
-        onLoad={() => {
-          if (window.Twitch) {
-            const embed = new window.Twitch.Embed("twitch-embed", {
-              width: "100%",
-              height: "100%",
-              channel: "merrbakes",
-              layout: "video",
-              theme: "light",
-              muted: true
-            });
-          }}}/>
-      {isLoading && (
-        <main className="flex h-screen w-screen flex-col items-center justify-center p-10 bg-merrbakes-pink">
-          <video className="pb-5" width="1563" height="1563" preload="true" autoPlay={true}
-                 playsInline={true} muted>
-            <source src="/logo.mp4" type="video/mp4"/>
-            Loading...
-          </video>
-        </main>
-      )}
-      <main
-        className={isLoading ? 'hidden ' : '' + `flex min-h-screen h-fit w-screen flex-col items-center p-10 
-                  bg-merrbakes-pink`}>
-        <Menu scrollTo={scrollTo}/>
-        <h1 className="hand-font text-merrbakes-brown text-6xl" id="top">
-          merrbakes
-        </h1>
-        <TwitchViewer scrollTo={scrollTo}/>
-        <MailingListItem className="w-full"/>
-        <div className="flex flex-col w-screen p-10 sm:grid sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
-          <Card id="shop"
-                className="aspect-square border-merrbakes-brown flex-col justify-center font-hand"
-                link="https://ko-fi.com/merrbakes/shop">
-            <Image src="/kofi.png" alt="Ko-fi" width={1259} height={853} className="p-5"/>
-            <h2 className="text-merrbakes-brown">visit merrbakes ko-fi shop!</h2>
-          </Card>
-          {kofiItems.map((item, index) => {
-            let el = <KofiItem key={'kofi ' + index} item={item} className=""/>
-            return index < reviews.length - 1 ? [el, <ReviewItem key={'review ' + index} {...reviews[index]}/>] : el;
-          })}
-          <Card id="discord"
-                className="flex-col justify-center border-merrbakes-gray" link="https://discord.gg/uRAWAWMQKU">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" className="bi bi-discord p-5 fill-[#5865f2]"
-                 viewBox="0 0 16 16">
-              <path
-                d="M13.545 2.907a13.2 13.2 0 0 0-3.257-1.011.05.05 0 0 0-.052.025c-.141.25-.297.577-.406.833a12.2 12.2 0 0 0-3.658 0 8 8 0 0 0-.412-.833.05.05 0 0 0-.052-.025c-1.125.194-2.22.534-3.257 1.011a.04.04 0 0 0-.021.018C.356 6.024-.213 9.047.066 12.032q.003.022.021.037a13.3 13.3 0 0 0 3.995 2.02.05.05 0 0 0 .056-.019q.463-.63.818-1.329a.05.05 0 0 0-.01-.059l-.018-.011a9 9 0 0 1-1.248-.595.05.05 0 0 1-.02-.066l.015-.019q.127-.095.248-.195a.05.05 0 0 1 .051-.007c2.619 1.196 5.454 1.196 8.041 0a.05.05 0 0 1 .053.007q.121.1.248.195a.05.05 0 0 1-.004.085 8 8 0 0 1-1.249.594.05.05 0 0 0-.03.03.05.05 0 0 0 .003.041c.24.465.515.909.817 1.329a.05.05 0 0 0 .056.019 13.2 13.2 0 0 0 4.001-2.02.05.05 0 0 0 .021-.037c.334-3.451-.559-6.449-2.366-9.106a.03.03 0 0 0-.02-.019m-8.198 7.307c-.789 0-1.438-.724-1.438-1.612s.637-1.613 1.438-1.613c.807 0 1.45.73 1.438 1.613 0 .888-.637 1.612-1.438 1.612m5.316 0c-.788 0-1.438-.724-1.438-1.612s.637-1.613 1.438-1.613c.807 0 1.451.73 1.438 1.613 0 .888-.631 1.612-1.438 1.612"/>
-            </svg>
-            <h2 className="text-merrbakes-brown">join the merringue gang on discord!</h2>
-          </Card>
-          <DiscordItems />
-          <Card id="instagram"
-                className="flex-col justify-center border-merrbakes-gray" link="https://www.instagram.com/MerrBakes">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" className="bi bi-instagram p-5 fill-[#c32aa3]"
-                 viewBox="0 0 16 16">
-              <path
-                d="M8 0C5.829 0 5.556.01 4.703.048 3.85.088 3.269.222 2.76.42a3.9 3.9 0 0 0-1.417.923A3.9 3.9 0 0 0 .42 2.76C.222 3.268.087 3.85.048 4.7.01 5.555 0 5.827 0 8.001c0 2.172.01 2.444.048 3.297.04.852.174 1.433.372 1.942.205.526.478.972.923 1.417.444.445.89.719 1.416.923.51.198 1.09.333 1.942.372C5.555 15.99 5.827 16 8 16s2.444-.01 3.298-.048c.851-.04 1.434-.174 1.943-.372a3.9 3.9 0 0 0 1.416-.923c.445-.445.718-.891.923-1.417.197-.509.332-1.09.372-1.942C15.99 10.445 16 10.173 16 8s-.01-2.445-.048-3.299c-.04-.851-.175-1.433-.372-1.941a3.9 3.9 0 0 0-.923-1.417A3.9 3.9 0 0 0 13.24.42c-.51-.198-1.092-.333-1.943-.372C10.443.01 10.172 0 7.998 0zm-.717 1.442h.718c2.136 0 2.389.007 3.232.046.78.035 1.204.166 1.486.275.373.145.64.319.92.599s.453.546.598.92c.11.281.24.705.275 1.485.039.843.047 1.096.047 3.231s-.008 2.389-.047 3.232c-.035.78-.166 1.203-.275 1.485a2.5 2.5 0 0 1-.599.919c-.28.28-.546.453-.92.598-.28.11-.704.24-1.485.276-.843.038-1.096.047-3.232.047s-2.39-.009-3.233-.047c-.78-.036-1.203-.166-1.485-.276a2.5 2.5 0 0 1-.92-.598 2.5 2.5 0 0 1-.6-.92c-.109-.281-.24-.705-.275-1.485-.038-.843-.046-1.096-.046-3.233s.008-2.388.046-3.231c.036-.78.166-1.204.276-1.486.145-.373.319-.64.599-.92s.546-.453.92-.598c.282-.11.705-.24 1.485-.276.738-.034 1.024-.044 2.515-.045zm4.988 1.328a.96.96 0 1 0 0 1.92.96.96 0 0 0 0-1.92m-4.27 1.122a4.109 4.109 0 1 0 0 8.217 4.109 4.109 0 0 0 0-8.217m0 1.441a2.667 2.667 0 1 1 0 5.334 2.667 2.667 0 0 1 0-5.334"/>
-            </svg>
-            <h2 className="text-merrbakes-brown">check out merrbakes instagram</h2>
-          </Card>
-          {instagramPosts.map((item: InstagramItemType, index) => (
-            <InstagramItem key={'instagram ' + index} {...item} />
-          ))}
-          <Card id="throne"
-                className="flex-col justify-center border-merrbakes-gray" link="https://throne.com/merrbakes">
-            <Image src="/throne.png" alt="Throne" width={1192} height={1004} className=""/>
-            <h2 className="text-merrbakes-brown">buy merr a gift on throne!</h2>
-          </Card>
+    <main className="min-h-screen bg-merrbakes-pink text-merrbakes-brown font-hand">
+      {/* NAV */}
+      <StorefrontHeader logoHref="#top" ctaHref="/club" />
 
-        </div>
-        <div id="socials" className="lg:relative">
-          <div className="text-merrbakes-brown flex flex-col items-center font-hand text-3xl 2xl:text-4xl">
-            <a href="https://twitch.tv/merrbakes" className="flex flex-row items-center hover:text-[#9146ff]">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" className="bi bi-twitch w-7"
-                   viewBox="0 0 16 16">
-                <path
-                  d="M3.857 0 1 2.857v10.286h3.429V16l2.857-2.857H9.57L14.714 8V0zm9.714 7.429-2.285 2.285H9l-2 2v-2H4.429V1.143h9.142z"/>
-                <path d="M11.857 3.143h-1.143V6.57h1.143zm-3.143 0H7.571V6.57h1.143z"/>
-              </svg>
-              <span className="ml-2">
-              merrbakes
-            </span>
-            </a>
-            <a href="https://ko-fi.com/merrbakes" className="flex flex-row items-center hover:text-[#FF5E5B]">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" className="bi bi-bag-heart w-7"
-                   viewBox="0 0 16 16">
-                <path fillRule="evenodd"
-                      d="M10.5 3.5a2.5 2.5 0 0 0-5 0V4h5zm1 0V4H15v10a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V4h3.5v-.5a3.5 3.5 0 1 1 7 0M14 14V5H2v9a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1M8 7.993c1.664-1.711 5.825 1.283 0 5.132-5.825-3.85-1.664-6.843 0-5.132"/>
-              </svg>
-              <span className="ml-2">
-              store
-            </span>
-            </a>
-            <a href="https://discord.gg/uRAWAWMQKU" className="flex flex-row items-center hover:text-[#5865f2]">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" className="bi bi-discord w-7"
-                   viewBox="0 0 16 16">
-                <path
-                  d="M13.545 2.907a13.2 13.2 0 0 0-3.257-1.011.05.05 0 0 0-.052.025c-.141.25-.297.577-.406.833a12.2 12.2 0 0 0-3.658 0 8 8 0 0 0-.412-.833.05.05 0 0 0-.052-.025c-1.125.194-2.22.534-3.257 1.011a.04.04 0 0 0-.021.018C.356 6.024-.213 9.047.066 12.032q.003.022.021.037a13.3 13.3 0 0 0 3.995 2.02.05.05 0 0 0 .056-.019q.463-.63.818-1.329a.05.05 0 0 0-.01-.059l-.018-.011a9 9 0 0 1-1.248-.595.05.05 0 0 1-.02-.066l.015-.019q.127-.095.248-.195a.05.05 0 0 1 .051-.007c2.619 1.196 5.454 1.196 8.041 0a.05.05 0 0 1 .053.007q.121.1.248.195a.05.05 0 0 1-.004.085 8 8 0 0 1-1.249.594.05.05 0 0 0-.03.03.05.05 0 0 0 .003.041c.24.465.515.909.817 1.329a.05.05 0 0 0 .056.019 13.2 13.2 0 0 0 4.001-2.02.05.05 0 0 0 .021-.037c.334-3.451-.559-6.449-2.366-9.106a.03.03 0 0 0-.02-.019m-8.198 7.307c-.789 0-1.438-.724-1.438-1.612s.637-1.613 1.438-1.613c.807 0 1.45.73 1.438 1.613 0 .888-.637 1.612-1.438 1.612m5.316 0c-.788 0-1.438-.724-1.438-1.612s.637-1.613 1.438-1.613c.807 0 1.451.73 1.438 1.613 0 .888-.631 1.612-1.438 1.612"/>
-              </svg>
-              <span className="ml-2">
-              merringue gang
-            </span>
-            </a>
-            <a href="https://twitter.com/MerrBakes" className="flex flex-row items-center hover:text-black">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" className="bi bi-twitter-x w-7"
-                   viewBox="0 0 16 16">
-                <path
-                  d="M12.6.75h2.454l-5.36 6.142L16 15.25h-4.937l-3.867-5.07-4.425 5.07H.316l5.733-6.57L0 .75h5.063l3.495 4.633L12.601.75Zm-.86 13.028h1.36L4.323 2.145H2.865z"/>
-              </svg>
-              <span className="ml-2">
-              @merrbakes
-            </span>
-            </a>
-            <a href="https://www.instagram.com/MerrBakes"
-               className="flex flex-row items-center hover:text-[#c32aa3]">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" className="bi bi-instagram w-7"
-                   viewBox="0 0 16 16">
-                <path
-                  d="M8 0C5.829 0 5.556.01 4.703.048 3.85.088 3.269.222 2.76.42a3.9 3.9 0 0 0-1.417.923A3.9 3.9 0 0 0 .42 2.76C.222 3.268.087 3.85.048 4.7.01 5.555 0 5.827 0 8.001c0 2.172.01 2.444.048 3.297.04.852.174 1.433.372 1.942.205.526.478.972.923 1.417.444.445.89.719 1.416.923.51.198 1.09.333 1.942.372C5.555 15.99 5.827 16 8 16s2.444-.01 3.298-.048c.851-.04 1.434-.174 1.943-.372a3.9 3.9 0 0 0 1.416-.923c.445-.445.718-.891.923-1.417.197-.509.332-1.09.372-1.942C15.99 10.445 16 10.173 16 8s-.01-2.445-.048-3.299c-.04-.851-.175-1.433-.372-1.941a3.9 3.9 0 0 0-.923-1.417A3.9 3.9 0 0 0 13.24.42c-.51-.198-1.092-.333-1.943-.372C10.443.01 10.172 0 7.998 0zm-.717 1.442h.718c2.136 0 2.389.007 3.232.046.78.035 1.204.166 1.486.275.373.145.64.319.92.599s.453.546.598.92c.11.281.24.705.275 1.485.039.843.047 1.096.047 3.231s-.008 2.389-.047 3.232c-.035.78-.166 1.203-.275 1.485a2.5 2.5 0 0 1-.599.919c-.28.28-.546.453-.92.598-.28.11-.704.24-1.485.276-.843.038-1.096.047-3.232.047s-2.39-.009-3.233-.047c-.78-.036-1.203-.166-1.485-.276a2.5 2.5 0 0 1-.92-.598 2.5 2.5 0 0 1-.6-.92c-.109-.281-.24-.705-.275-1.485-.038-.843-.046-1.096-.046-3.233s.008-2.388.046-3.231c.036-.78.166-1.204.276-1.486.145-.373.319-.64.599-.92s.546-.453.92-.598c.282-.11.705-.24 1.485-.276.738-.034 1.024-.044 2.515-.045zm4.988 1.328a.96.96 0 1 0 0 1.92.96.96 0 0 0 0-1.92m-4.27 1.122a4.109 4.109 0 1 0 0 8.217 4.109 4.109 0 0 0 0-8.217m0 1.441a2.667 2.667 0 1 1 0 5.334 2.667 2.667 0 0 1 0-5.334"/>
-              </svg>
-              <span className="ml-2">
-              @merrbakes
-            </span>
-            </a>
-            <a href="https://www.tiktok.com/@merrbakes" className="flex flex-row items-center hover:text-[#69c9d0]">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" className="bi bi-tiktok w-7"
-                   viewBox="0 0 16 16">
-                <path
-                  d="M9 0h1.98c.144.715.54 1.617 1.235 2.512C12.895 3.389 13.797 4 15 4v2c-1.753 0-3.07-.814-4-1.829V11a5 5 0 1 1-5-5v2a3 3 0 1 0 3 3z"/>
-              </svg>
-              <span className="ml-2">
-              @merrbakes
-            </span>
-            </a>
+      {/* HERO */}
+      <section id="top" className="max-w-6xl mx-auto px-5 pt-16 pb-16 lg:pt-20 lg:pb-20 lg:min-h-[72vh] grid lg:grid-cols-2 gap-10 items-center">
+        <div>
+          <div className="flex flex-wrap gap-2 mb-5 text-base font-bold">
+            <span className="bg-merrbakes-yellow text-merrbakes-brown rounded-full px-3 py-1">{copy.hero.pills[0]}</span>
+            <span className="bg-twitch-purple text-white rounded-full px-3 py-1">{copy.hero.pills[1]}</span>
+            <span className="bg-merrbakes-green text-merrbakes-brown rounded-full px-3 py-1">{copy.hero.pills[2]}</span>
+          </div>
+          <h1 className="text-5xl sm:text-6xl font-black leading-[1.05] text-balance">
+            {copy.hero.headlinePrefix}<span style={hl}>{copy.hero.headlineHighlight}</span>{copy.hero.headlineSuffix}
+          </h1>
+          <p className={`${prose} text-xl text-merrbakes-brown/80 mt-5 max-w-xl`}>
+            {copy.hero.subheadLines.map((line, i) => (
+              <span key={i}>
+                {line}
+                {i < copy.hero.subheadLines.length - 1 && <br />}
+              </span>
+            ))}
+          </p>
+          <div className="flex flex-wrap gap-3 mt-7">
+            <a href="#menu" className={btnPrimary}>{copy.hero.primaryButton}</a>
+            <a href="/club" className={btnGhost}>{copy.hero.secondaryButton}</a>
+          </div>
+          <div className="flex flex-wrap gap-5 mt-6 text-lg font-semibold text-merrbakes-brown/70">
+            <span>{copy.hero.trustLines[0]}</span>
+            <span>{copy.hero.trustLines[1]}</span>
           </div>
         </div>
-      </main>
-    </>
+        <div className="grid grid-cols-2 gap-4" aria-hidden>
+          {heroItems.length === 0
+            ? Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className={`bg-white rounded-3xl p-3.5 border border-merrbakes-brown/15 shadow-md ${i === 1 ? "mt-6" : i === 3 ? "-mt-2" : ""}`}
+                     style={{ transform: `rotate(${[-2, 1.5, 1, -1.5][i]}deg)` }}>
+                  <div className="h-28 rounded-2xl bg-merrbakes-pink/40 animate-pulse" />
+                  <div className="mt-2.5 h-5 w-3/4 rounded-full bg-merrbakes-pink/40 animate-pulse" />
+                  <div className="mt-2 h-5 w-1/3 rounded-full bg-merrbakes-pink/40 animate-pulse" />
+                </div>
+              ))
+            : heroItems.slice(0, 4).map((c, i) => (
+                <div key={c.name} className={`bg-white rounded-3xl p-3.5 border border-merrbakes-brown/15 shadow-md ${i === 1 ? "mt-6" : i === 3 ? "-mt-2" : ""}`}
+                     style={{ transform: `rotate(${[-2, 1.5, 1, -1.5][i]}deg)` }}>
+                  {c.photoUrl ? (
+                    <div className="h-28 rounded-2xl relative overflow-hidden bg-merrbakes-pink/40">
+                      <Image src={c.photoUrl} alt={c.name} fill sizes="(max-width: 1024px) 45vw, 220px" className="object-cover" />
+                    </div>
+                  ) : (
+                    <div className="h-28 rounded-2xl grid place-items-center text-5xl" style={{ background: plates[c.plate ?? "butter"] }}>{c.icon ?? "🍪"}</div>
+                  )}
+                  <div className="mt-2.5 text-xl font-bold">{c.name}</div>
+                  <div className="text-merrbakes-berry text-lg font-bold">{c.price}</div>
+                </div>
+              ))}
+        </div>
+      </section>
+
+      {/* ABOUT */}
+      <section id="about" className="relative bg-merrbakes-yellow overflow-hidden">
+        <svg viewBox="0 0 1200 60" preserveAspectRatio="none" className="relative z-20 block w-full h-9 -mb-px" aria-hidden>
+          <path
+            d="M0,0 H1200 V18 C1150,18 1150,54 1100,54 C1050,54 1050,18 1000,18 C950,18 950,54 900,54 C850,54 850,18 800,18 C750,18 750,54 700,54 C650,54 650,18 600,18 C550,18 550,54 500,54 C450,54 450,18 400,18 C350,18 350,54 300,54 C250,54 250,18 200,18 C150,18 150,54 100,54 C50,54 50,18 0,18 Z"
+            fill="#F4D9E1"
+          />
+        </svg>
+        {/* sprinkle field — the content column below has its own opaque background so sprinkles
+            never show under the text; the radial fade here is just for a softer look at the edges */}
+        <svg
+          className="absolute inset-0 z-0 w-full h-full"
+          style={{ maskImage: "radial-gradient(ellipse at center, transparent 32%, black 70%)", WebkitMaskImage: "radial-gradient(ellipse at center, transparent 32%, black 70%)" }}
+          aria-hidden
+        >
+          <defs>
+            <pattern id="sprinkles" width="221" height="221" patternUnits="userSpaceOnUse">
+              <g fill="none" strokeLinecap="round" strokeLinejoin="round">
+                <path d={star5(33.84, 33.84, 9.5, 4)} fill="#67DFB9" stroke="#67DFB9" strokeWidth="2.2" />
+                <path d={star5(161.29, 57.17, 9.5, 4)} fill="#ffffff" stroke="#ffffff" strokeWidth="2.2" />
+                <path d={star5(80.62, 127.44, 9.5, 4)} fill="#E15C7C" stroke="#E15C7C" strokeWidth="2.2" />
+                <path d={star5(197.58, 179.46, 9.5, 4)} fill="#67DFB9" stroke="#67DFB9" strokeWidth="2.2" />
+                <path d={star5(20.74, 189.8, 9.5, 4)} fill="#ffffff" stroke="#ffffff" strokeWidth="2.2" />
+                <rect x="92.36" y="20.74" width="5" height="18" rx="2.5" fill="#765C4B" transform="rotate(20 95.58 32.48)" />
+                <rect x="14.32" y="88.4" width="5" height="18" rx="2.5" fill="#E15C7C" transform="rotate(-15 17.53 100.13)" />
+                <rect x="128.68" y="101.37" width="5" height="18" rx="2.5" fill="#765C4B" transform="rotate(35 132.01 113.13)" />
+                <rect x="180.79" y="23.46" width="5" height="18" rx="2.5" fill="#F4A7BE" transform="rotate(-25 184.01 35.07)" />
+                <rect x="115.71" y="166.46" width="5" height="18" rx="2.5" fill="#765C4B" transform="rotate(10 118.92 178.09)" />
+                <rect x="50.76" y="192.41" width="5" height="18" rx="2.5" fill="#67DFB9" transform="rotate(-30 53.96 204.16)" />
+              </g>
+            </pattern>
+          </defs>
+          <rect width="100%" height="100%" fill="url(#sprinkles)" />
+        </svg>
+        <div className="relative z-10 max-w-3xl mx-auto px-5 pt-10 pb-32 flex flex-col items-center text-center">
+          <div className="w-40 h-40 sm:w-48 sm:h-48 rounded-full relative overflow-hidden shadow-md border-4 border-merrbakes-brown">
+            <Image src="/merr-photo.png" alt={copy.about.name} fill sizes="192px" className="object-cover" style={{ objectPosition: "center 25%" }} />
+          </div>
+          {/* opaque only around the text itself, so the padding above/below stays transparent and shows sprinkles */}
+          <div className="bg-merrbakes-yellow flex flex-col items-center">
+            <div className="text-4xl sm:text-5xl font-black mt-6">{copy.about.name}</div>
+            <div className="flex items-center gap-2 mt-2 text-xl font-bold text-merrbakes-brown/80">
+              {copy.about.tagline.map((word, i) => (
+                <span key={word} className="flex items-center gap-2">
+                  {i > 0 && <span className="text-merrbakes-berry text-base">✿</span>}
+                  {word}
+                </span>
+              ))}
+            </div>
+            <div className={`${prose} text-xl text-merrbakes-brown/75 mt-5 flex flex-col gap-3`}>
+              {copy.about.bodyLines.map((line, i) => <p key={i}>{line}</p>)}
+            </div>
+            <div className="flex flex-wrap justify-center gap-3 mt-8">
+              {copy.about.socials.map((s, i) => {
+                const Icon = aboutSocialIcons[i];
+                const isTwitch = i === 0;
+                const isThrone = i === 6;
+                return (
+                  <SocialButton key={s.label} href={s.href} ariaLabel={s.label} tooltip={s.tooltip}
+                     className={`w-12 h-12 rounded-full grid place-items-center transition ${isTwitch
+                       ? "bg-twitch-purple text-white text-2xl hover:opacity-85"
+                       : isThrone
+                       ? "bg-white border-2 border-merrbakes-brown/60 hover:border-merrbakes-berry overflow-hidden p-2.5"
+                       : "bg-white text-merrbakes-brown text-2xl border-2 border-merrbakes-brown/60 hover:border-merrbakes-berry"}`}>
+                    <Icon />
+                  </SocialButton>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* MENU */}
+      <section id="menu" className="bg-white/70 border-y border-merrbakes-brown/15">
+        <div className="max-w-6xl mx-auto px-5 py-16">
+          <div className="flex flex-wrap items-end justify-between gap-5 mb-8">
+            <div>
+              <h2 className={`${h2} text-merrbakes-berry`}>{copy.menu.heading}</h2>
+            </div>
+            <a href="/shop" className={btnPrimary}>{copy.menu.shopButtonLabel}</a>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {menuItems.length === 0
+              ? Array.from({ length: 8 }).map((_, i) => (
+                  <div key={i} className="bg-white rounded-2xl overflow-hidden border border-merrbakes-brown/15 shadow-sm flex flex-col h-72">
+                    <div className="flex-[3] bg-merrbakes-pink/30 animate-pulse" />
+                    <div className="flex-1 px-3 py-2 flex flex-col justify-center gap-2">
+                      <div className="h-4 w-2/3 rounded-full bg-merrbakes-pink/30 animate-pulse" />
+                      <div className="h-4 w-1/4 rounded-full bg-merrbakes-pink/30 animate-pulse" />
+                    </div>
+                  </div>
+                ))
+              : menuItems.slice(0, 8).map((it) => (
+                  <div key={it.name} className="relative bg-white rounded-2xl overflow-hidden border border-merrbakes-brown/15 shadow-sm hover:-translate-y-1 hover:shadow-md transition flex flex-col h-72">
+                    <Link href={`/shop/${slugify(it.name)}`} className="absolute inset-0 z-10" aria-label={it.name} />
+                    {/* image is 75% of the card height, info strip below is the other 25% */}
+                    <div className="relative flex-[3]">
+                      {it.photoUrl ? (
+                        <Image src={it.photoUrl} alt={it.name} fill sizes="(max-width: 768px) 45vw, 220px" className="object-cover" />
+                      ) : (
+                        <div className="absolute inset-0 grid place-items-center text-5xl" style={{ background: plates[it.plate ?? "butter"] }}>{it.icon ?? "🍪"}</div>
+                      )}
+                      {it.tag && (
+                        <span className={`absolute top-2.5 left-2.5 text-sm font-bold rounded-full px-2.5 py-1 ${it.limited ? "bg-merrbakes-brown text-merrbakes-yellow" : "bg-merrbakes-yellow text-merrbakes-brown"}`}>{it.tag}</span>
+                      )}
+                      <button type="button"
+                         onClick={() => addDefaultVariant(it)}
+                         className="absolute bottom-2.5 right-2.5 z-20 bg-merrbakes-berry text-white rounded-full px-4 py-1.5 text-lg font-bold hover:opacity-85 transition shadow-sm">{copy.menu.addButtonLabel}</button>
+                    </div>
+                    <div className="relative flex-1 px-3 py-2">
+                      <div className="text-lg font-bold leading-tight line-clamp-2 pr-14">{it.name}</div>
+                      <span className="absolute bottom-2 right-3 text-lg font-black text-merrbakes-berry">{it.price}</span>
+                    </div>
+                  </div>
+                ))}
+          </div>
+          <p className={`${prose} mt-6 text-merrbakes-brown/70 text-lg`}>
+            {copy.menu.footerLine}{" "}
+            <a href="/club" className="font-bold text-merrbakes-berry underline decoration-merrbakes-yellow decoration-4">{copy.menu.footerLinkText}</a>
+          </p>
+        </div>
+      </section>
+
+      {/* CLUB */}
+      <section id="club" className="bg-merrbakes-green border-y border-merrbakes-brown/15">
+        <div className="max-w-6xl mx-auto px-5 py-16">
+          <div className="text-center max-w-2xl mx-auto mb-10">
+            <h2 className={`${h2} text-merrbakes-berry`}>{copy.club.heading}</h2>
+            <p className={`${prose} text-xl text-merrbakes-brown mt-3`}>
+              {copy.club.subhead}
+            </p>
+          </div>
+          <div className="grid md:grid-cols-3 gap-6 items-start">
+            {pastMenus.map((m) => (
+              <div key={m.month}>
+                {m.photoUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- unknown per-photo
+                  // dimensions from Notion; a plain img shows it uncropped at its own aspect ratio
+                  <img src={m.photoUrl} alt={`${m.theme} — ${formatMonth(m.month)}`} className="w-full h-auto rounded-2xl shadow-sm" />
+                ) : (
+                  <div className="aspect-square rounded-2xl grid place-items-center text-5xl" style={{ background: plates.butter }}>🎁</div>
+                )}
+                <div className="text-merrbakes-brown text-lg font-bold lowercase tracking-wide mt-3 text-center">{formatMonth(m.month)}</div>
+              </div>
+            ))}
+          </div>
+          <div className="text-center mt-8">
+            <a href="/club" className={btnPrimary}>{copy.club.ctaButton}</a>
+          </div>
+        </div>
+      </section>
+
+      {/* EMAIL LEAD MAGNET */}
+      <section id="subscribe" className="bg-gradient-to-br from-twitch-purple to-merrbakes-berry text-white">
+        <div className="max-w-6xl mx-auto px-5 py-16 grid lg:grid-cols-2 gap-8 items-center">
+          <div>
+            <h2 className="text-4xl font-black mt-1 text-merrbakes-yellow">{copy.emailMagnet.heading}</h2>
+            <p className={`${prose} text-xl mt-3 opacity-90 max-w-lg`}>
+              {copy.emailMagnet.subhead}
+            </p>
+          </div>
+          <div className="bg-white/10 border border-white/25 rounded-3xl p-6">
+            {joined ? (
+              <div className={`${prose} text-2xl text-white py-3`}>{copy.emailMagnet.successMessage}</div>
+            ) : (
+              <>
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <input id="ml" type="email" value={email} placeholder={copy.emailMagnet.inputPlaceholder} autoComplete="email"
+                         aria-label={copy.emailMagnet.formLabel}
+                         onChange={(e) => setEmail(e.target.value)}
+                         className={`${prose} flex-1 rounded-full px-5 py-3 text-lg text-merrbakes-brown bg-white outline-none focus:ring-4 focus:ring-merrbakes-yellow`} />
+                  <button type="button" onClick={join}
+                          className="bg-merrbakes-yellow text-merrbakes-brown rounded-full px-6 py-3 text-xl font-bold hover:opacity-90 transition whitespace-nowrap">{copy.emailMagnet.submitButton}</button>
+                </div>
+                <label className={`${prose} flex items-center gap-2 mt-3 text-base font-semibold text-white/90 cursor-pointer`}>
+                  <input type="checkbox" checked={sendRecipe} onChange={(e) => setSendRecipe(e.target.checked)}
+                         className="w-4 h-4 rounded accent-merrbakes-yellow" />
+                  send me the recipe
+                </label>
+                <div className={`${prose} opacity-80 text-base mt-3`}>{err || copy.emailMagnet.helperText}</div>
+              </>
+            )}
+          </div>
+        </div>
+      </section>
+
+      {/* WATCH / GANG */}
+      <section id="watch">
+        <div className="max-w-2xl mx-auto px-5 py-16 text-center">
+          <h2 className={`${h2} text-merrbakes-berry`}>{copy.watch.heading}</h2>
+          <p className={`${prose} text-xl text-merrbakes-brown/75 mt-3`}>
+            {copy.watch.subhead}
+          </p>
+          {calendar?.photoUrl && (
+            // eslint-disable-next-line @next/next/no-img-element -- unknown dimensions from Notion;
+            // a plain img shows it uncropped at its own aspect ratio (same approach as the club photos)
+            <img src={calendar.photoUrl} alt={`stream schedule — ${formatMonth(calendar.month)}`} className="w-full h-auto rounded-2xl shadow-sm mt-7" />
+          )}
+          <div className="flex flex-wrap gap-3 justify-center mt-7">
+            {copy.watch.buttons.map((b, i) => (
+              <a key={b.label} href={b.href} target="_blank" rel="noreferrer"
+                 className={i === 0 ? "bg-twitch-purple text-white rounded-full px-6 py-3 text-xl font-bold hover:opacity-85 transition" : btnGhost}>
+                {b.label}
+              </a>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* FOOTER */}
+      <footer className="bg-merrbakes-brown text-merrbakes-pink">
+        <div className="max-w-6xl mx-auto px-5 py-12 flex flex-wrap justify-between gap-8">
+          <div className="max-w-xs flex flex-col items-center text-center">
+            <div className="text-[45px] leading-none font-black text-merrbakes-pink">{copy.footer.logo}</div>
+            <div className="w-32 h-32 rounded-full relative overflow-hidden border-2 border-merrbakes-pink/40 mt-3">
+              <Image src="/merr-photo.png" alt="Merr" fill sizes="128px" className="object-cover" style={{ objectPosition: "center 25%" }} />
+            </div>
+          </div>
+          <div className="flex gap-12 flex-wrap text-lg">
+            {copy.footer.columns.map((col) => (
+              <div key={col.title}>
+                <div className={`${prose} uppercase tracking-widest opacity-50 text-sm mb-2`}>{col.title}</div>
+                {col.links.map((l) => (
+                  <a key={l.label} href={l.href} className="block opacity-85 hover:opacity-100 py-0.5">{l.label}</a>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className={`${prose} max-w-6xl mx-auto px-5 pb-10 opacity-50 text-base`}>{copy.footer.copyright}</div>
+      </footer>
+    </main>
   );
 }

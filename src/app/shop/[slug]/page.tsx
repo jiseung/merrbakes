@@ -18,8 +18,8 @@ const prose = "font-sans";
 const btnPrimary =
   "inline-flex items-center gap-2 bg-merrbakes-berry text-white rounded-full px-6 py-3 text-xl font-bold hover:opacity-85 transition shadow-sm";
 
-// storefront anchors (#club, #blog, #watch) live on /option16, not this page
-const HOME = "/option16";
+// storefront anchors (#club, #blog, #watch) live on the homepage (/), not this page
+const HOME = "/";
 const home = (href: string) => (href.startsWith("#") ? HOME + href : href);
 
 function Stars({ rating }: { rating: number }) {

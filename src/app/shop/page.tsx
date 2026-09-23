@@ -23,8 +23,8 @@ const plates: Record<Plate, string> = {
 const prose = "font-sans";
 const h2 = "text-4xl font-black mt-1";
 
-// storefront anchors (#club, #blog, #watch) live on /option16, not this page
-const HOME = "/option16";
+// storefront anchors (#club, #blog, #watch) live on the homepage (/), not this page
+const HOME = "/";
 const home = (href: string) => (href.startsWith("#") ? HOME + href : href);
 
 // shared by the main menu grid and the merch grid below it

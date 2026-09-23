@@ -1,5 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // /option16 was the storefront's working route before it became the homepage;
+  // keep old links (and /club's HOME constant) working.
+  async redirects() {
+    return [{ source: '/option16', destination: '/', permanent: true }];
+  },
   images: {
     remotePatterns: [
       {
