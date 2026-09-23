@@ -25,7 +25,9 @@ export default function ProductPage({ params }: { params: Promise<{ slug: string
 
   // pool includes baked-goods (Single), merch, and digital items — a product card
   // can link here from any of those grids on /shop, so the lookup has to cover all three.
-  const [items, setItems] = useState<DropItem[] | null>(null);
+  // `baked` marks items from the default (Type "Single") fetch — only those get the
+  // "ships once this batch fills" note; merch and digital don't ship in batches.
+  const [items, setItems] = useState<(DropItem & { baked?: boolean })[] | null>(null);
   useEffect(() => {
     Promise.all([
       fetch("/api/notion-shop", { cache: "no-store" }).then((res) => res.json()),
@@ -36,7 +38,7 @@ export default function ProductPage({ params }: { params: Promise<{ slug: string
         const singleItems = Array.isArray(single.data) ? single.data : [];
         const merchItems = Array.isArray(merch.data) ? merch.data : [];
         const digitalItems = Array.isArray(digital.data) ? digital.data : [];
-        setItems([...singleItems, ...merchItems, ...digitalItems]);
+        setItems([...singleItems.map((it: DropItem) => ({ ...it, baked: true })), ...merchItems, ...digitalItems]);
       })
       .catch(() => setItems([]));
   }, []);
@@ -138,9 +140,11 @@ export default function ProductPage({ params }: { params: Promise<{ slug: string
                 ) : (
                   <div className="h-8 w-20 mt-2 rounded-full bg-white/60 animate-pulse" />
                 )}
-                <div className={`${prose} inline-flex items-center gap-1.5 text-sm font-bold text-merrbakes-brown/70 bg-merrbakes-yellow/40 rounded-full px-3 py-1 mt-2`}>
-                  {copy.shipsNote}
-                </div>
+                {item.baked && (
+                  <div className={`${prose} inline-flex items-center gap-1.5 text-sm font-bold text-merrbakes-brown/70 bg-merrbakes-yellow/40 rounded-full px-3 py-1 mt-2`}>
+                    {copy.shipsNote}
+                  </div>
+                )}
 
                 <div className={`${prose} text-merrbakes-brown/80 mt-5 flex flex-col gap-3 max-w-lg`}>
                   {(item.description ?? "").split(/\n\s*\n/).map((p, i) => <p key={i}>{p.trim()}</p>)}

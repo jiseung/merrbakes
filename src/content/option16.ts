@@ -30,7 +30,9 @@ export const option16Copy = {
     ],
     primaryButton: "order now",
     secondaryButton: "join the club",
-    trustLines: ["⭐ loved by 1,000+ viewers", "📦 500+ boxes shipped"],
+    // 2,900+ = Twitch + Instagram + TikTok + YouTube + Discord, summed 2026-09-23
+    // (2,960; see merrbakes.md). 4,000+ boxes per Merr.
+    trustLines: ["⭐ loved by 2,900+ followers", "📦 4,000+ boxes shipped"],
   },
 
   about: {
