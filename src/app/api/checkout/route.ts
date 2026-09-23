@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe';
 import { fetchVariantForCheckout, notionHeaders } from '@/lib/notion';
+import { syncStripePrice } from '@/lib/reconcile';
+import { displayName } from '@/lib/shopItems';
 
 const ORDERS_DB_ID = process.env.NOTION_ORDERS_DB_ID;
 
@@ -81,8 +83,24 @@ export async function POST(req: NextRequest) {
       if (!variant) {
         return NextResponse.json({ error: 'one of the items in your cart is no longer available' }, { status: 404 });
       }
+      // Safety net for Notion edits the sync hasn't picked up yet: make sure the
+      // Stripe Price matches Notion's current price (creating/replacing it if not)
+      // before charging it, so a customer is never charged a stale price.
+      // label only names a newly created Stripe Product (mirrors variantDisplayName).
+      const label = variant.name && variant.name !== 'Standard'
+        ? `${displayName(variant.shopItemName)} — ${variant.name}`
+        : displayName(variant.shopItemName);
+      const synced = await syncStripePrice(variant, label);
+      if (synced.action === 'error') {
+        console.log('checkout price sync error:', variant.id, synced.error);
+        return NextResponse.json({ error: 'prices are being updated — please try again in a minute' }, { status: 409 });
+      }
+      const stripePriceId =
+        synced.action === 'created' ? synced.priceId
+        : synced.action === 'updated' ? synced.newPriceId
+        : variant.stripePriceId;
       const quantity = Number(line.quantity) > 0 ? Number(line.quantity) : 1;
-      lineItems.push({ price: variant.stripePriceId, quantity });
+      lineItems.push({ price: stripePriceId, quantity });
       shippingInputs.push({ ...variant, quantity });
     }
 

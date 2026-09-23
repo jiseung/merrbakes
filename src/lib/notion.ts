@@ -71,10 +71,17 @@ function parseDollarAmount(richText: { plain_text: string }[] | undefined): numb
 }
 
 // Same lookup as fetchStripePriceIdByVariantId, but also resolves the variant's
-// parent Shop Item to get shipping-relevant fields. Two sequential GETs (variant,
+// parent Shop Item to get shipping-relevant fields, plus the Notion price/names
+// checkout needs to verify (or create) the Stripe Price before charging it. An
+// empty stripePriceId is returned as-is rather than treated as unavailable —
+// checkout syncs it first (see /api/checkout). Two sequential GETs (variant,
 // then its Shop Item relation) since there's no joined endpoint - callers running
 // this per cart line should do so in parallel across lines.
 export async function fetchVariantForCheckout(variantId: string): Promise<{
+  id: string;
+  name: string;
+  price: string;
+  shopItemName: string;
   stripePriceId: string;
   shopItemType: string;
   shippingUS: number;
@@ -88,7 +95,6 @@ export async function fetchVariantForCheckout(variantId: string): Promise<{
   const variantPage = await variantRes.json();
   const stripePriceId =
     variantPage.properties?.['Stripe Price ID']?.rich_text?.map((t: any) => t.plain_text).join('') ?? '';
-  if (!stripePriceId) return null;
 
   const shopItemId = variantPage.properties?.['Shop Item']?.relation?.[0]?.id;
   if (!shopItemId) return null;
@@ -101,6 +107,10 @@ export async function fetchVariantForCheckout(variantId: string): Promise<{
   const shopItemPage = await shopItemRes.json();
 
   return {
+    id: variantPage.id,
+    name: variantPage.properties?.['Variant Name']?.title?.map((t: any) => t.plain_text).join('') ?? '',
+    price: variantPage.properties?.Price?.rich_text?.map((t: any) => t.plain_text).join('') ?? '',
+    shopItemName: shopItemPage.properties?.Name?.title?.map((t: any) => t.plain_text).join('') ?? '',
     stripePriceId,
     shopItemType: shopItemPage.properties?.Type?.select?.name ?? '',
     shippingUS: parseDollarAmount(shopItemPage.properties?.['Shipping (US)']?.rich_text),
