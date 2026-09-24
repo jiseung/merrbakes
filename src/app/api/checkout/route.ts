@@ -115,6 +115,7 @@ export async function POST(req: NextRequest) {
       // buyers wouldn't be searchable/selectable in the Dashboard later (e.g.
       // to restrict a referral promo code to a specific person).
       customer_creation: 'always',
+      allow_promotion_codes: true,
       // pre-fills Stripe's own email field with what the pre-checkout step
       // already collected, so the customer isn't asked twice — still editable.
       ...(trimmedEmail ? { customer_email: trimmedEmail } : {}),

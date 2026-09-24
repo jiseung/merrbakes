@@ -26,6 +26,7 @@ export default function CartDrawer() {
   const [email, setEmail] = useState("");
   const [referredBy, setReferredBy] = useState("");
   const [lookup, setLookup] = useState<"idle" | "checking" | "existing" | "new">("idle");
+  const [subscribeToList, setSubscribeToList] = useState(true);
   const [checkingOut, setCheckingOut] = useState(false);
   const [error, setError] = useState("");
 
@@ -43,23 +44,26 @@ export default function CartDrawer() {
 
   async function checkout() {
     if (!email || email.indexOf("@") < 1) { setError("enter your email to continue."); return; }
-    setCheckingOut(true);
-    setError("");
 
-    // re-run (or finish) the lookup here rather than trusting whatever the
-    // blur handler above landed on — avoids a race if "continue" gets clicked
-    // before that fetch resolves.
+    // If the lookup hasn't resolved yet, resolve it here. A new customer stops
+    // so the referral field can appear before we redirect them away; an
+    // existing customer has nothing more to fill in, so carry on to payment.
     let status = lookup;
     if (status === "idle" || status === "checking") {
+      setLookup("checking");
       try {
         const res = await fetch(`/api/customer-lookup?email=${encodeURIComponent(email)}`);
         const data = await res.json();
         status = data.isNewCustomer ? "new" : "existing";
-        setLookup(status);
       } catch {
         status = "existing"; // fail closed on the referral field, not on checkout itself
       }
+      setLookup(status);
+      if (status === "new") return;
     }
+
+    setCheckingOut(true);
+    setError("");
 
     try {
       const res = await fetch("/api/checkout", {
@@ -72,8 +76,18 @@ export default function CartDrawer() {
         }),
       });
       const data = await res.json();
-      if (data.url) window.location.href = data.url;
-      else { setError("something went wrong starting checkout — try again in a moment."); setCheckingOut(false); }
+      if (data.url) {
+        // fire-and-forget — the user is about to be redirected to Stripe, so
+        // there's no point (and no time) to wait on this before navigating.
+        if (subscribeToList) {
+          fetch("/api/join", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email }),
+          }).catch(() => {});
+        }
+        window.location.href = data.url;
+      } else { setError("something went wrong starting checkout — try again in a moment."); setCheckingOut(false); }
     } catch {
       setError("something went wrong starting checkout — try again in a moment.");
       setCheckingOut(false);
@@ -112,10 +126,10 @@ export default function CartDrawer() {
                       <div className={`${prose} text-merrbakes-brown/70 text-sm`}>{it.price} each</div>
                       <div className="flex items-center gap-2 mt-1">
                         <button type="button" onClick={() => setQuantity(it.variantId, it.quantity - 1)}
-                                className="w-6 h-6 rounded-full border border-merrbakes-brown/40 grid place-items-center hover:border-merrbakes-berry">−</button>
+                                className={`${prose} leading-none w-6 h-6 rounded-full border border-merrbakes-brown/40 grid place-items-center hover:border-merrbakes-berry`}><span className="-translate-y-px">−</span></button>
                         <span className={`${prose} w-5 text-center`}>{it.quantity}</span>
                         <button type="button" onClick={() => setQuantity(it.variantId, it.quantity + 1)}
-                                className="w-6 h-6 rounded-full border border-merrbakes-brown/40 grid place-items-center hover:border-merrbakes-berry">+</button>
+                                className={`${prose} leading-none w-6 h-6 rounded-full border border-merrbakes-brown/40 grid place-items-center hover:border-merrbakes-berry`}><span className="-translate-y-px">+</span></button>
                         <button type="button" onClick={() => remove(it.variantId)}
                                 className={`${prose} text-sm text-merrbakes-brown/50 hover:text-merrbakes-berry ml-2 underline`}>remove</button>
                       </div>
@@ -136,6 +150,11 @@ export default function CartDrawer() {
                        className={inputClass} />
               </div>
               {lookup === "checking" && <p className={`${prose} text-sm text-merrbakes-brown/50`}>checking…</p>}
+              <label className={`${prose} flex items-center gap-2 text-sm text-merrbakes-brown/70`}>
+                <input type="checkbox" checked={subscribeToList}
+                       onChange={(e) => setSubscribeToList(e.target.checked)} />
+                subscribe to email list
+              </label>
               {lookup === "new" && (
                 <div>
                   <label className={`${prose} text-sm font-bold text-merrbakes-brown/70`}>who referred you? (optional)</label>
@@ -164,7 +183,7 @@ export default function CartDrawer() {
             ) : (
               <button type="button" onClick={checkout} disabled={checkingOut}
                       className="w-full bg-merrbakes-berry text-white rounded-full py-3 text-xl font-bold hover:opacity-85 transition disabled:opacity-60">
-                {checkingOut ? "redirecting…" : "continue to payment →"}
+                {checkingOut ? "redirecting…" : "continue →"}
               </button>
             )}
           </div>

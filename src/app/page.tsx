@@ -203,7 +203,7 @@ export default function Home() {
             <span>{copy.hero.trustLines[1]}</span>
           </div>
         </div>
-        {heroItems?.length !== 0 && <div className="grid grid-cols-2 gap-4" aria-hidden>
+        {heroItems?.length !== 0 && <div className="grid grid-cols-2 gap-4" aria-hidden={heroItems === null}>
           {heroItems === null
             ? Array.from({ length: 4 }).map((_, i) => (
                 <div key={i} className={`bg-white rounded-3xl p-3.5 border border-merrbakes-brown/15 shadow-md ${i === 1 ? "mt-6" : i === 3 ? "-mt-2" : ""}`}
@@ -214,8 +214,10 @@ export default function Home() {
                 </div>
               ))
             : heroItems.slice(0, 4).map((c, i) => (
-                <div key={c.name} className={`bg-white rounded-3xl p-3.5 border border-merrbakes-brown/15 shadow-md ${i === 1 ? "mt-6" : i === 3 ? "-mt-2" : ""}`}
-                     style={{ transform: `rotate(${[-2, 1.5, 1, -1.5][i]}deg)` }}>
+                // hover lift is shadow/border only — a translate utility would be overridden by the inline rotate transform
+                <Link key={c.name} href={`/shop/${slugify(c.name)}`}
+                      className={`block bg-white rounded-3xl p-3.5 border border-merrbakes-brown/15 shadow-md hover:shadow-xl hover:border-merrbakes-berry/50 transition ${i === 1 ? "mt-6" : i === 3 ? "-mt-2" : ""}`}
+                      style={{ transform: `rotate(${[-2, 1.5, 1, -1.5][i]}deg)` }}>
                   {c.photoUrl ? (
                     <div className="h-28 rounded-2xl relative overflow-hidden bg-merrbakes-pink/40">
                       <Image src={c.photoUrl} alt={c.name} fill sizes="(max-width: 1024px) 45vw, 220px" className="object-cover" />
@@ -225,7 +227,7 @@ export default function Home() {
                   )}
                   <div className="mt-2.5 text-xl font-bold">{c.name}</div>
                   <div className="text-merrbakes-berry text-lg font-bold">{c.price}</div>
-                </div>
+                </Link>
               ))}
         </div>}
       </section>
