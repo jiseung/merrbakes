@@ -23,6 +23,7 @@ export type ShopItemRow = {
   id: string;
   name: string;
   price: string;
+  type: string;
 };
 
 export type VariantRow = {
@@ -59,6 +60,7 @@ async function fetchShopItems(): Promise<ShopItemRow[]> {
     id: page.id,
     name: page.properties?.Name?.title?.map((t: any) => t.plain_text).join('') ?? '',
     price: page.properties?.Price?.rich_text?.map((t: any) => t.plain_text).join('') ?? '',
+    type: page.properties?.Type?.select?.name ?? '',
   }));
 }
 
@@ -237,8 +239,9 @@ export async function runReconcile(): Promise<ReconcileReport> {
   });
 
   for (const shopItem of shopItems) {
-    // 1. missing Fulfillment row
-    if (!fulfillmentShopItemIds.has(shopItem.id)) {
+    // 1. missing Fulfillment row — not for Digital items, which are delivered
+    // automatically (download on the /order page), so there's nothing to pack.
+    if (shopItem.type !== 'Digital' && !fulfillmentShopItemIds.has(shopItem.id)) {
       await createFulfillmentRow(shopItem);
       report.fulfillmentRowsCreated.push(shopItem.name);
     }
