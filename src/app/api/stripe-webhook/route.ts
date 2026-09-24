@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { stripe } from '@/lib/stripe';
 import { notionHeaders, createOrderLineItems } from '@/lib/notion';
+import { sendStreamAlert, streamName } from '@/lib/streamAlert';
 
 const ORDERS_DB_ID = process.env.NOTION_ORDERS_DB_ID;
 const ORDER_LINE_ITEMS_DB_ID = process.env.NOTION_ORDER_LINE_ITEMS_DB_ID;
@@ -17,6 +18,16 @@ async function orderAlreadyRecorded(sessionId: string): Promise<boolean> {
   });
   const data = await res.json();
   return (data.results ?? []).length > 0;
+}
+
+// name for the on-stream alert, from the checkout's shout-out fields (set by
+// /api/checkout and /api/subscribe)
+function sessionStreamName(session: Stripe.Checkout.Session): string {
+  return streamName({
+    anonymous: session.metadata?.stream_anonymous === 'yes',
+    twitchHandle: session.metadata?.twitch_handle,
+    fullName: session.customer_details?.name,
+  });
 }
 
 function formatShipping(session: Stripe.Checkout.Session): string {
@@ -90,6 +101,15 @@ export async function POST(req: NextRequest) {
           });
         }
       }
+      // stream alert on signup only — the weekly charges (invoice.paid) don't get one.
+      // line 0 is the recurring price, named after the club/level
+      await sendStreamAlert({
+        source: 'merrbakes.com',
+        kind: 'subscription',
+        name: sessionStreamName(session),
+        amount: (session.amount_total ?? 0) / 100,
+        summary: lineItems.data[0]?.description ?? '',
+      });
       return NextResponse.json({ ok: true, subscriptionSignup: true });
     }
 
@@ -146,6 +166,14 @@ export async function POST(req: NextRequest) {
 
     const orderPage = await notionRes.json();
     await createOrderLineItems(ORDER_LINE_ITEMS_DB_ID, orderPage.id, lineItemsToRecord);
+
+    await sendStreamAlert({
+      source: 'merrbakes.com',
+      kind: 'purchase',
+      name: sessionStreamName(session),
+      amount: (session.amount_total ?? 0) / 100,
+      summary: summaryLines.join(', '),
+    });
 
     return NextResponse.json({ ok: true, unmatchedItems: lineItems.data.length - relationIds.size });
   } catch (error) {

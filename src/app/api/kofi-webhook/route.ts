@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { KofiAPIResponseType, KofiWebhookPayloadType } from '../types';
 import { SHOP_ITEMS_DB_ID, VARIANTS_DB_ID, notionHeaders, createOrderLineItems } from '@/lib/notion';
+import { kofiStreamName, sendStreamAlert } from '@/lib/streamAlert';
 
 const ORDERS_DB_ID = process.env.NOTION_ORDERS_DB_ID;
 const ORDER_LINE_ITEMS_DB_ID = process.env.NOTION_ORDER_LINE_ITEMS_DB_ID;
@@ -199,6 +200,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'invalid verification token' }, { status: 401 });
     }
 
+    // donations/tips aren't fulfillment items — no Orders row, just the stream alert
+    if (payload.type === 'Donation') {
+      await sendStreamAlert({
+        source: 'Ko-fi',
+        kind: 'donation',
+        name: kofiStreamName(payload.from_name, payload.is_public),
+        amount: parseFloat(payload.amount) || 0,
+        summary: '',
+      });
+      return NextResponse.json({ ok: true, donation: true });
+    }
+
     if (await orderAlreadyRecorded(payload.kofi_transaction_id)) {
       return NextResponse.json({ ok: true, duplicate: true });
     }
@@ -247,10 +260,20 @@ export async function POST(req: NextRequest) {
         console.log('kofi-webhook: Notion page create failed (subscription)', result.error);
         return NextResponse.json({ error: 'notion create failed' }, { status: 500 });
       }
+      // stream alert for new members only, not monthly renewals
+      if (payload.is_first_subscription_payment) {
+        await sendStreamAlert({
+          source: 'Ko-fi',
+          kind: 'subscription',
+          name: kofiStreamName(payload.from_name, payload.is_public),
+          amount: parseFloat(payload.amount) || 0,
+          summary: payload.tier_name ?? '',
+        });
+      }
       return NextResponse.json({ ok: true, tier: payload.tier_name, matchedItems: lineItemsToRecord.length });
     }
 
-    // Only shop purchases and club subscriptions feed the packing-list — donations/tips/commissions aren't fulfillment items.
+    // Only shop purchases and club subscriptions feed the packing-list — commissions aren't fulfillment items.
     if (payload.type !== 'Shop Order') {
       return NextResponse.json({ ignored: true, type: payload.type });
     }
@@ -294,6 +317,14 @@ export async function POST(req: NextRequest) {
       console.log('kofi-webhook: Notion page create failed', result.error);
       return NextResponse.json({ error: 'notion create failed' }, { status: 500 });
     }
+
+    await sendStreamAlert({
+      source: 'Ko-fi',
+      kind: 'purchase',
+      name: kofiStreamName(payload.from_name, payload.is_public),
+      amount: parseFloat(payload.amount) || 0,
+      summary: summaryLines.join(', '),
+    });
 
     return NextResponse.json({ ok: true, unmatchedItems: items.length - relationIds.size });
   } catch (error) {

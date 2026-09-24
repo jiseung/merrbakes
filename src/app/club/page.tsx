@@ -9,6 +9,7 @@ import { useEffect, useState, FormEvent } from "react";
 import Image from "next/image";
 import { clubCopy as copy } from "@/content/club";
 import StorefrontHeader from "@/components/StorefrontHeader";
+import StreamShoutoutFields from "@/components/StreamShoutoutFields";
 
 type ClubOption = { variantId: string; name: string; price: string; tweats: number | null; isDefault: boolean };
 type Club = { id: string; name: string; interval: "week" | "month"; options: ClubOption[] };
@@ -101,6 +102,9 @@ export default function ClubPage() {
   const option = club?.options.find((o) => o.variantId === variantId) ?? null;
 
   const [email, setEmail] = useState("");
+  // name for Merr's on-stream alert (see src/lib/streamAlert.ts)
+  const [twitchHandle, setTwitchHandle] = useState("");
+  const [streamAnonymous, setStreamAnonymous] = useState(false);
   const [joinStatus, setJoinStatus] = useState<"idle" | "sending" | "error">("idle");
   const [joinError, setJoinError] = useState("");
   async function subscribe(e: FormEvent) {
@@ -111,7 +115,7 @@ export default function ClubPage() {
       const res = await fetch("/api/subscribe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ variantId, email }),
+        body: JSON.stringify({ variantId, email, twitchHandle, streamAnonymous }),
       });
       const d = await res.json();
       if (d.url) { window.location.href = d.url; return; }
@@ -313,6 +317,14 @@ export default function ClubPage() {
                   ? copy.join.weeklyBilling(option.price, formatDay(joinData.weekly.firstBoxCutoff), formatDay(joinData.weekly.firstWeeklyCharge))
                   : copy.join.monthlyBilling(option.price)}
               </p>
+              <div className="mt-4 max-w-xl">
+                <StreamShoutoutFields
+                  twitchHandle={twitchHandle} onTwitchHandleChange={setTwitchHandle}
+                  anonymous={streamAnonymous} onAnonymousChange={setStreamAnonymous}
+                  inputClassName={`${prose} w-full mt-1 rounded-full px-5 py-3 text-lg text-merrbakes-brown bg-white outline-none focus:ring-4 focus:ring-merrbakes-yellow`}
+                  labelClassName={`${prose} text-base font-bold`}
+                  hintClassName={`${prose} text-base opacity-90`} />
+              </div>
               <div className="mt-4 flex flex-col sm:flex-row gap-3 max-w-xl">
                 <input type="email" value={email} placeholder={copy.join.emailPlaceholder} aria-label={copy.join.emailLabel} autoComplete="email"
                        onChange={(e) => setEmail(e.target.value)}

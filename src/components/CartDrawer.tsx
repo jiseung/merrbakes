@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { Plate } from "@/content/option16";
 import { useCart } from "@/lib/cart";
 import { cartCopy as copy } from "@/content/cart";
+import StreamShoutoutFields from "@/components/StreamShoutoutFields";
 
 const plates: Record<Plate, string> = {
   choc: "radial-gradient(circle at 32% 28%,#c98a5e,transparent 55%),linear-gradient(140deg,#6b4429,#4a2c17)",
@@ -39,6 +40,9 @@ export default function CartDrawer() {
   const [giftRecipient, setGiftRecipient] = useState("");
   const [giftMessage, setGiftMessage] = useState("");
   const [giftAddressFromMerr, setGiftAddressFromMerr] = useState(false);
+  // name for Merr's on-stream alert (see src/lib/streamAlert.ts)
+  const [twitchHandle, setTwitchHandle] = useState("");
+  const [streamAnonymous, setStreamAnonymous] = useState(false);
   const [checkingOut, setCheckingOut] = useState(false);
   const [error, setError] = useState("");
 
@@ -88,6 +92,8 @@ export default function CartDrawer() {
           referredBy: status === "new" ? referredBy : "",
           promoCode,
           gift: isGift ? { recipientName: giftRecipient, message: giftMessage, addressFromMerr: giftAddressFromMerr } : undefined,
+          twitchHandle,
+          streamAnonymous,
         }),
       });
       const data = await res.json();
@@ -184,6 +190,12 @@ export default function CartDrawer() {
                        onChange={(e) => setPromoCode(e.target.value)}
                        className={inputClass} />
               </div>
+              <StreamShoutoutFields
+                twitchHandle={twitchHandle} onTwitchHandleChange={setTwitchHandle}
+                anonymous={streamAnonymous} onAnonymousChange={setStreamAnonymous}
+                inputClassName={inputClass}
+                labelClassName={`${prose} text-sm font-bold text-merrbakes-brown/70`}
+                hintClassName={`${prose} text-sm text-merrbakes-brown/70`} />
               <label className={`${prose} flex items-center gap-2 text-base font-bold text-merrbakes-brown/80`}>
                 <input type="checkbox" checked={isGift} onChange={(e) => setIsGift(e.target.checked)} />
                 {copy.gift.toggle}
