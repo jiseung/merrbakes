@@ -5,8 +5,6 @@ const nextConfig = {
   async redirects() {
     return [
       { source: '/option16', destination: '/', permanent: true },
-      // Tweat signup moved into /club's join section
-      { source: '/tweat', destination: '/club#join', permanent: true },
     ];
   },
   images: {

@@ -182,8 +182,8 @@ export default function ClubPage() {
               <ul className={`${prose} mt-4 mb-6 flex-1 flex flex-col gap-2 text-lg text-merrbakes-brown/75`}>
                 {t.perks.map((p) => <li key={p} className="flex gap-2"><span>🍪</span>{p}</li>)}
               </ul>
-              {/* weekly club signs up on merrbakes.com (/tweat, Stripe); the monthly
-                  clubs are Ko-fi memberships */}
+              {/* every club joins here via #join (Stripe); the monthly clubs can also
+                  be joined on Ko-fi, where existing members stay */}
               <a href="#join" onClick={() => pickClubByName(t.name)}
                  className={`block text-center rounded-full py-3 text-xl font-bold transition ${t.featured ? "bg-merrbakes-berry text-white hover:opacity-85" : "bg-white text-merrbakes-brown border-2 border-merrbakes-brown/60 hover:border-merrbakes-berry"}`}>
                 {copy.hero.joinHereLabel(t.name.replace(" Club", ""))}

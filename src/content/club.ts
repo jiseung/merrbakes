@@ -108,7 +108,7 @@ export const clubCopy = {
     items: [
       { icon: "📜", title: "vote on the menu", body: "Help pick what Merr bakes next week." },
       { icon: "💙", title: "role in discord", body: "An exclusive corner of the server just for members." },
-      { icon: "💯", title: "cancel anytime", body: "No contracts. Pause whenever." },
+      { icon: "💯", title: "cancel anytime", body: "No contracts. Cancel whenever." },
     ],
   },
 
