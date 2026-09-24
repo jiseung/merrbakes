@@ -8,7 +8,7 @@ import { tweatCopy as copy } from "@/content/tweat";
 import StorefrontHeader from "@/components/StorefrontHeader";
 
 type Level = { variantId: string; name: string; price: string; tweats: number | null; isDefault: boolean };
-type Club = { name: string; description: string; photoUrl: string | null; levels: Level[]; nextBilling: string };
+type Club = { name: string; description: string; photoUrl: string | null; levels: Level[]; firstBoxCutoff: string; firstWeeklyCharge: string };
 
 const prose = "font-sans";
 const btnPrimary =
@@ -16,10 +16,8 @@ const btnPrimary =
 const HOME = "/";
 const home = (href: string) => (href.startsWith("#") ? HOME + href : href);
 
-function formatCharge(iso: string): string {
-  return new Date(iso).toLocaleString("en-US", {
-    timeZone: "America/Chicago", weekday: "long", month: "long", day: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short",
-  }).toLowerCase();
+function formatDay(iso: string): string {
+  return new Date(iso).toLocaleString("en-US", { timeZone: "America/Chicago", weekday: "long", month: "long", day: "numeric" }).toLowerCase();
 }
 
 export default function TweatPage() {
@@ -118,7 +116,9 @@ export default function TweatPage() {
                   {status === "sending" ? copy.submittingLabel : copy.submitLabel}
                 </button>
               </div>
-              <p className={`${prose} text-base font-semibold mt-3`}>{copy.firstCharge(formatCharge(club.nextBilling))}</p>
+              <p className={`${prose} text-base font-semibold mt-3`}>
+                {copy.firstCharge(club.levels.find((l) => l.variantId === selected)?.price ?? "", formatDay(club.firstBoxCutoff), formatDay(club.firstWeeklyCharge))}
+              </p>
               {status === "error" && <p className={`${prose} text-merrbakes-berry text-base mt-2`}>{error}</p>}
             </form>
 

@@ -75,11 +75,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'missing items' }, { status: 400 });
     }
 
-    const hasCode = typeof promoCode === 'string' && promoCode.trim() !== '';
-    if (hasCode && !isClubWeekCode(promoCode)) {
-      return NextResponse.json({ error: "that code isn't valid" }, { status: 400 });
+    // one promo field in the cart: the club-week code (free shipping on drop
+    // items, handled below) or any active Stripe promotion code, applied to the
+    // session. Stripe's hosted page can't be pre-filled with typed text, so the
+    // code is resolved here; with no code, buyers can still enter one on Stripe.
+    const code = typeof promoCode === 'string' ? promoCode.trim() : '';
+    const clubWeekCode = code !== '' && isClubWeekCode(code);
+    let stripePromotionCode: string | null = null;
+    if (code && !clubWeekCode) {
+      const found = await stripe.promotionCodes.list({ code, active: true, limit: 1 });
+      if (!found.data[0]) {
+        return NextResponse.json({ error: "that code isn't valid" }, { status: 400 });
+      }
+      stripePromotionCode = found.data[0].id;
     }
-    const clubWeekCode = hasCode;
 
     const giftInput: GiftInput | null = gift && typeof gift === 'object' ? gift : null;
     const giftRecipient = typeof giftInput?.recipientName === 'string' ? giftInput.recipientName.trim().slice(0, 100) : '';
@@ -156,7 +165,8 @@ export async function POST(req: NextRequest) {
       // buyers wouldn't be searchable/selectable in the Dashboard later (e.g.
       // to restrict a referral promo code to a specific person).
       customer_creation: 'always',
-      allow_promotion_codes: true,
+      // Stripe allows either a pre-applied discount or its own promo box, not both
+      ...(stripePromotionCode ? { discounts: [{ promotion_code: stripePromotionCode }] } : { allow_promotion_codes: true }),
       // pre-fills Stripe's own email field with what the pre-checkout step
       // already collected, so the customer isn't asked twice — still editable.
       ...(trimmedEmail ? { customer_email: trimmedEmail } : {}),

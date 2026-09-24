@@ -29,8 +29,8 @@ function star5(cx: number, cy: number, rOuter: number, rInner: number): string {
   return `M${pts[0]} L${pts.slice(1).join(" L")} Z`;
 }
 
-// storefront anchors (#drop etc.) live on /option16, not this page
-const HOME = "/option16";
+// storefront anchors (#drop etc.) live on the homepage (/), not this page
+const HOME = "/";
 const home = (href: string) => (href.startsWith("#") ? HOME + href : href);
 
 // Loose match for tying a live Notion row back to its static tier — handles the
@@ -144,7 +144,10 @@ export default function ClubPage() {
               <ul className={`${prose} mt-4 mb-6 flex-1 flex flex-col gap-2 text-lg text-merrbakes-brown/75`}>
                 {t.perks.map((p) => <li key={p} className="flex gap-2"><span>🍪</span>{p}</li>)}
               </ul>
-              <a href="https://ko-fi.com/merrbakes" target="_blank" rel="noreferrer"
+              {/* weekly club signs up on merrbakes.com (/tweat, Stripe); the monthly
+                  clubs are Ko-fi memberships */}
+              <a href={t.billing === "wk" ? "/tweat" : "https://ko-fi.com/merrbakes"}
+                 {...(t.billing === "wk" ? {} : { target: "_blank", rel: "noreferrer" })}
                  className={`block text-center rounded-full py-3 text-xl font-bold transition ${t.featured ? "bg-merrbakes-berry text-white hover:opacity-85" : "bg-white text-merrbakes-brown border-2 border-merrbakes-brown/60 hover:border-merrbakes-berry"}`}>
                 join {t.name.replace(" Club", "")}
               </a>

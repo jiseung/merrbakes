@@ -1,6 +1,8 @@
 // Weekly memberships bill every Friday at 6pm Central (owner, 2026-09-24 — when
 // Merr usually goes live). Level changes made before then apply to that week's
 // charge and box. America/Chicago handles CST/CDT automatically.
+// Signup pays for the first box up front (owner, round 4), so the recurring
+// Friday charges start one week after the first box's cutoff.
 const ZONE = 'America/Chicago';
 const BILLING_WEEKDAY = 5; // Friday (0 = Sunday)
 const BILLING_HOUR = 18;
@@ -38,4 +40,10 @@ export function nextBillingTime(now = new Date()): Date {
   let when = chicagoBillingTime(y, m, d + daysAhead);
   if (when.getTime() - now.getTime() < MIN_LEAD_MS) when = chicagoBillingTime(y, m, d + daysAhead + 7);
   return when;
+}
+
+// for a signup now: the first box (paid at checkout) is finalized at
+// nextBillingTime(); the first recurring Friday charge is the one after that
+export function firstRecurringCharge(now = new Date()): Date {
+  return nextBillingTime(new Date(nextBillingTime(now).getTime() + 60 * 60 * 1000));
 }

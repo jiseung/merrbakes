@@ -3,12 +3,14 @@ import { stripe } from '@/lib/stripe';
 import { fetchVariantForCheckout } from '@/lib/notion';
 import { syncStripePrice } from '@/lib/reconcile';
 import { displayName } from '@/lib/shopItems';
-import { nextBillingTime } from '@/lib/billing';
+import { firstRecurringCharge } from '@/lib/billing';
 
 // Weekly membership signup (Tweat of the Week) via Stripe Checkout in
-// subscription mode. Billing is anchored to the next Friday 6pm Central with no
-// proration, so nothing is charged at signup — the first charge (and first box)
-// is that Friday. Members change level later through /api/tweat/manage.
+// subscription mode. The first box is paid at checkout (a one-time line at the
+// level's price); the weekly price then starts at the Friday 6pm charge after
+// that box's cutoff — Stripe models the gap as a trial, which is also what
+// anchors every later charge to Friday 6pm. Members change level through
+// /api/tweat/manage.
 export async function POST(req: NextRequest) {
   try {
     const { variantId, email } = await req.json();
@@ -31,15 +33,26 @@ export async function POST(req: NextRequest) {
       : synced.action === 'updated' ? synced.newPriceId
       : variant.stripePriceId;
 
+    const recurring = await stripe.prices.retrieve(price);
     const trimmedEmail = typeof email === 'string' ? email.trim() : '';
     const origin = new URL(req.url).origin;
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
-      line_items: [{ price, quantity: 1 }],
+      line_items: [
+        { price, quantity: 1 },
+        {
+          price_data: {
+            currency: 'usd',
+            unit_amount: recurring.unit_amount ?? 0,
+            // notion_page_id lets /api/stripe-webhook count this as a box of the level
+            product_data: { name: `${label} — first box`, metadata: { notion_page_id: variant.id } },
+          },
+          quantity: 1,
+        },
+      ],
       ...(trimmedEmail ? { customer_email: trimmedEmail } : {}),
       subscription_data: {
-        billing_cycle_anchor: Math.floor(nextBillingTime().getTime() / 1000),
-        proration_behavior: 'none',
+        trial_end: Math.floor(firstRecurringCharge().getTime() / 1000),
         metadata: { notion_variant_id: variant.id },
       },
       shipping_address_collection: { allowed_countries: ['US'] },

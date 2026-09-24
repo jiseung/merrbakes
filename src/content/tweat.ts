@@ -15,8 +15,9 @@ export const tweatCopy = {
     "change your level any time before friday 6pm and that week's box follows it.",
     "cancel any time — it stops after your current week.",
   ],
-  // {date} = the member's first charge
-  firstCharge: (date: string) => `nothing's charged today — your first charge is ${date}.`,
+  // {price} = the chosen level's price, {box} = the first box's cutoff, {weekly} = first Friday charge
+  firstCharge: (price: string, box: string, weekly: string) =>
+    `you'll pay ${price} today for your first box (finalized ${box}), then every friday at 6pm central starting ${weekly}.`,
   emailLabel: "your email",
   emailPlaceholder: "you@email.com",
   submitLabel: "join the club",

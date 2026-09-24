@@ -68,26 +68,29 @@ export async function POST(req: NextRequest) {
       expand: ['data.price.product'],
     });
 
-    // membership signup: nothing is charged or shipped yet (the first charge is
-    // the next Friday 6pm billing, recorded via invoice.paid), so record the
-    // signup without Items/line items — otherwise it'd count as a box to pack.
-    const isSignup = session.mode === 'subscription';
-    if (isSignup && session.customer) {
-      // save the collected address on the customer so every weekly invoice
-      // carries it (invoice.customer_shipping)
-      const shipping = session.collected_information?.shipping_details;
-      if (shipping?.address) {
-        const a = shipping.address;
-        await stripe.customers.update(typeof session.customer === 'string' ? session.customer : session.customer.id, {
-          shipping: {
-            name: shipping.name,
-            address: {
-              line1: a.line1 ?? undefined, line2: a.line2 ?? undefined, city: a.city ?? undefined,
-              state: a.state ?? undefined, postal_code: a.postal_code ?? undefined, country: a.country ?? undefined,
+    // membership signup: the first box is paid on the subscription's first
+    // invoice, which invoice.paid records like every weekly charge — so no Orders
+    // row here (it'd double-count), just save the address on the customer so
+    // every future invoice carries it.
+    if (session.mode === 'subscription') {
+      if (session.customer) {
+        // save the collected address on the customer so every weekly invoice
+        // carries it (invoice.customer_shipping)
+        const shipping = session.collected_information?.shipping_details;
+        if (shipping?.address) {
+          const a = shipping.address;
+          await stripe.customers.update(typeof session.customer === 'string' ? session.customer : session.customer.id, {
+            shipping: {
+              name: shipping.name,
+              address: {
+                line1: a.line1 ?? undefined, line2: a.line2 ?? undefined, city: a.city ?? undefined,
+                state: a.state ?? undefined, postal_code: a.postal_code ?? undefined, country: a.country ?? undefined,
+              },
             },
-          },
-        });
+          });
+        }
       }
+      return NextResponse.json({ ok: true, subscriptionSignup: true });
     }
 
     // each Stripe Product was created with metadata.notion_page_id pointing back
@@ -98,13 +101,12 @@ export async function POST(req: NextRequest) {
     const summaryLines = lineItems.data.map((li) => {
       const product = li.price?.product;
       const notionPageId = typeof product === 'object' && product && !product.deleted ? product.metadata?.notion_page_id : undefined;
-      if (notionPageId && !isSignup) {
+      if (notionPageId) {
         relationIds.add(notionPageId);
         lineItemsToRecord.push({ title: li.description ?? 'Item', variantId: notionPageId, quantity: li.quantity ?? 1 });
       }
       return `${li.quantity}x ${li.description}`;
     });
-    if (isSignup) summaryLines.push('(new membership signup — first charge next Friday 6pm CT)');
 
     const isGift = session.metadata?.gift === 'yes';
     const giftAddressFromMerr = session.metadata?.gift_address_from_merr === 'yes';
@@ -165,9 +167,18 @@ function formatCustomerShipping(shipping: Stripe.Invoice.CustomerShipping | null
   ].filter(Boolean).join('\n');
 }
 
+// the address collected at signup — used when an invoice has no
+// customer_shipping yet (the signup invoice can be paid before
+// checkout.session.completed has copied the address onto the customer)
+async function signupShipping(subscriptionId: string): Promise<string> {
+  const sessions = await stripe.checkout.sessions.list({ subscription: subscriptionId, limit: 1 });
+  return sessions.data[0] ? formatShipping(sessions.data[0]) : '';
+}
+
 // One Orders row (+ line items, so the packing-list rollups count it) per paid
-// membership charge. The $0 invoice Stripe creates at signup (billing is
-// anchored to the next Friday 6pm) is skipped — the signup row covers that.
+// membership charge: the signup invoice (first box, paid at checkout) and each
+// Friday 6pm charge after it. $0 invoices/lines (e.g. the trial line for the
+// weekly price at signup) aren't boxes and are skipped.
 async function recordSubscriptionInvoice(invoice: Stripe.Invoice) {
   if (!invoice.parent?.subscription_details || invoice.amount_paid <= 0 || !invoice.id) {
     return NextResponse.json({ ignored: true, reason: 'not a paid membership charge' });
@@ -181,6 +192,7 @@ async function recordSubscriptionInvoice(invoice: Stripe.Invoice) {
     const lineItemsToRecord: { title: string; variantId: string; quantity: number }[] = [];
     const summaryLines: string[] = [];
     for (const line of lines.data) {
+      if (line.amount <= 0) continue;
       const productId = line.pricing?.price_details?.product;
       const product = productId ? await stripe.products.retrieve(productId) : null;
       const variantId = product?.metadata?.notion_page_id;
@@ -192,19 +204,24 @@ async function recordSubscriptionInvoice(invoice: Stripe.Invoice) {
       summaryLines.push(`${line.quantity ?? 1}x ${title}`);
     }
 
+    const subscriptionRef = invoice.parent.subscription_details.subscription;
+    const subscriptionId = typeof subscriptionRef === 'string' ? subscriptionRef : subscriptionRef.id;
+    const shippingText = formatCustomerShipping(invoice.customer_shipping) || await signupShipping(subscriptionId);
+    const label = invoice.billing_reason === 'subscription_create' ? 'first box' : 'weekly';
+
     const notionRes = await fetch('https://api.notion.com/v1/pages', {
       method: 'POST',
       headers: notionHeaders(),
       body: JSON.stringify({
         parent: { database_id: ORDERS_DB_ID },
         properties: {
-          Name: { title: [{ text: { content: `${invoice.customer_name ?? 'Member'} — weekly — ${invoice.id.slice(-8)}` } }] },
+          Name: { title: [{ text: { content: `${invoice.customer_name ?? 'Member'} — ${label} — ${invoice.id.slice(-8)}` } }] },
           Source: { select: { name: 'merrbakes.com' } },
           'Buyer Name': { rich_text: [{ text: { content: invoice.customer_name ?? '' } }] },
           'Buyer Email': { rich_text: [{ text: { content: invoice.customer_email ?? '' } }] },
           'Items Summary': { rich_text: [{ text: { content: summaryLines.join(', ') || '(membership)' } }] },
           Items: { relation: Array.from(relationIds).map((id) => ({ id })) },
-          'Shipping Address': { rich_text: [{ text: { content: formatCustomerShipping(invoice.customer_shipping) } }] },
+          'Shipping Address': { rich_text: [{ text: { content: shippingText } }] },
           Amount: { number: invoice.amount_paid / 100 },
           'Ordered on': { date: { start: new Date().toISOString() } },
           'Transaction or Session ID': { rich_text: [{ text: { content: invoice.id } }] },
