@@ -105,6 +105,9 @@ export async function POST(req: NextRequest) {
     }
 
     const shippingCents = computeShippingCents(shippingInputs);
+    // digital-only carts (recipe cards) have nothing to ship — skip the address
+    // form and the $0 shipping line entirely.
+    const needsShipping = shippingInputs.some((l) => l.shopItemType !== 'Digital');
 
     const origin = new URL(req.url).origin;
     const session = await stripe.checkout.sessions.create({
@@ -124,17 +127,21 @@ export async function POST(req: NextRequest) {
       metadata: { referred_by: referralEligible ? trimmedReferral : '' },
       // these are baked-to-order and shipped — collect an address so a completed
       // order actually has somewhere to go (see /api/stripe-webhook).
-      shipping_address_collection: { allowed_countries: ['US'] },
-      shipping_options: [
-        {
-          shipping_rate_data: {
-            type: 'fixed_amount',
-            fixed_amount: { amount: shippingCents, currency: 'usd' },
-            display_name: 'Shipping',
+      ...(needsShipping ? {
+        shipping_address_collection: { allowed_countries: ['US'] as const },
+        shipping_options: [
+          {
+            shipping_rate_data: {
+              type: 'fixed_amount' as const,
+              fixed_amount: { amount: shippingCents, currency: 'usd' },
+              display_name: 'Shipping',
+            },
           },
-        },
-      ],
-      success_url: `${origin}/shop?checkout=success`,
+        ],
+      } : {}),
+      // order page: confirms payment, clears the cart, and hands out downloads
+      // for digital items. Stripe fills in {CHECKOUT_SESSION_ID} on redirect.
+      success_url: `${origin}/order/{CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/shop?checkout=cancelled`,
     });
 
