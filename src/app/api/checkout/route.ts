@@ -4,6 +4,7 @@ import { fetchVariantForCheckout, notionHeaders } from '@/lib/notion';
 import { syncStripePrice } from '@/lib/reconcile';
 import { displayName } from '@/lib/shopItems';
 import { isClubWeekCode } from '@/lib/promo';
+import { parseTip, tipLineItem } from '@/lib/tips';
 import { cleanStreamName } from '@/lib/streamAlert';
 
 const ORDERS_DB_ID = process.env.NOTION_ORDERS_DB_ID;
@@ -71,7 +72,8 @@ function computeShippingCents(
 
 export async function POST(req: NextRequest) {
   try {
-    const { items, email, referredBy, promoCode, gift, streamName, streamAnonymous } = await req.json();
+    const { items, email, referredBy, promoCode, gift, streamName, streamAnonymous, tipCents, tipNote } = await req.json();
+    const tip = parseTip(tipCents, tipNote);
     if (!Array.isArray(items) || items.length === 0) {
       return NextResponse.json({ error: 'missing items' }, { status: 400 });
     }
@@ -147,6 +149,8 @@ export async function POST(req: NextRequest) {
     // digital-only carts (recipe cards) have nothing to ship — skip the address
     // form and the $0 shipping line entirely.
     const needsShipping = shippingInputs.some((l) => l.shopItemType !== 'Digital');
+    // optional tip: its own line, never part of the shipping math
+    if (tip) lineItems.push(tipLineItem(tip.cents));
     // name-only gifts: no address form (Merr asks the recipient), so shipping is
     // charged as a plain line item instead of a shipping option
     const collectAddress = needsShipping && !giftAddressFromMerr;
@@ -185,6 +189,8 @@ export async function POST(req: NextRequest) {
         gift_message: giftMessage,
         gift_address_from_merr: giftAddressFromMerr ? 'yes' : '',
         club_week_code: dropApplied ? 'yes' : '',
+        tip_cents: tip ? String(tip.cents) : '',
+        tip_note: tip?.note ?? '',
         // on-stream alert name, read back in /api/stripe-webhook (see lib/streamAlert)
         stream_name: cleanStreamName(streamName),
         stream_anonymous: streamAnonymous === true ? 'yes' : '',

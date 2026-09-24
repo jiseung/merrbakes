@@ -40,6 +40,7 @@ export default function OrderPage({ params }: { params: Promise<{ session: strin
   const downloads = (items ?? []).filter((i) => i.digital);
   const others = (items ?? []).filter((i) => !i.digital);
   const isMember = (items ?? []).some((i) => i.membership);
+  const tipOnly = !!items && items.length > 0 && items.every((i) => i.tip);
   const [downloaded, setDownloaded] = useState<Set<string>>(new Set());
   const pending = downloads.filter((d) => d.hasFile && !downloaded.has(d.variantId)).length;
 
@@ -72,8 +73,8 @@ export default function OrderPage({ params }: { params: Promise<{ session: strin
           </div>
         ) : (
           <>
-            <h1 className="text-5xl font-black text-merrbakes-berry">{copy.heading}</h1>
-            <p className={`${prose} text-xl text-merrbakes-brown/75 mt-3`}>{copy.subhead}</p>
+            <h1 className="text-5xl font-black text-merrbakes-berry">{tipOnly ? copy.tipOnlyHeading : copy.heading}</h1>
+            <p className={`${prose} text-xl text-merrbakes-brown/75 mt-3`}>{tipOnly ? copy.tipOnlySubhead : copy.subhead}</p>
 
             {downloads.length > 0 && (
               <section className="mt-8 rounded-3xl border-4 border-merrbakes-berry bg-merrbakes-yellow p-6">

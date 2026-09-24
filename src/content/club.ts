@@ -79,6 +79,9 @@ export const clubCopy = {
     weeklyBilling: (price: string, box: string, weekly: string) =>
       `you'll pay ${price} today for your first box (finalized ${box}), then every friday at 6pm central starting ${weekly}. change your level any time before friday 6pm and that week's box follows it.`,
     monthlyBilling: (price: string) => `you'll pay ${price} today, then on the same date each month.`,
+    // {date} = the next skipped Friday (the one before cookie club week)
+    cookieWeekNote: (date: string) =>
+      `no tweat box or charge the friday before cookie club week (next one: ${date}) — merr's busy baking cookie club boxes. if your box would land then, it moves to the following friday.`,
     emailLabel: "your email",
     emailPlaceholder: "you@email.com",
     submitLabel: "join the club",
@@ -123,7 +126,7 @@ export const clubCopy = {
       { q: "what if i have allergies?",
         a: "Everything's made in a home kitchen that also handles wheat, dairy, eggs, and nuts. If you'd like to request accommodations, message Merr to talk about options." },
       { q: "when am i billed?",
-        a: "Monthly clubs: on the day you join, then the same date each month. Tweat of the Week: on the day you join (for your first box), then every Friday at 6pm Central." },
+        a: "Monthly clubs: on the day you join, then the same date each month. Tweat of the Week: on the day you join (for your first box), then every Friday at 6pm Central — except the Friday before cookie club week, when there's no box and no charge." },
       { q: "can i gift a membership?",
         a: "Totally — grab a tier with the recipient's address, or DM Merr and she'll help set it up as a gift." },
       { q: "what is cookie club week, and when is it?",

@@ -5,6 +5,9 @@ import { shopCopy } from "@/content/shop";
 export const orderCopy = {
   heading: "thank you! 🎉",
   subhead: "your order went through. here's what you got:",
+  // when the whole checkout was a tip (/api/tip)
+  tipOnlyHeading: "thank you for the tip! 💖",
+  tipOnlySubhead: "merr really appreciates it.",
   quantityPrefix: "×",
 
   downloads: {

@@ -115,6 +115,8 @@ export const option16Copy = {
           { label: "twitch", href: "https://twitch.tv/merrbakes" },
           { label: "discord", href: "https://discord.gg/uRAWAWMQKU" },
           { label: "mailing list", href: "#subscribe" },
+          // standalone tip: straight to a Stripe page where they pick the amount
+          { label: "tip merr 💖", href: "/api/tip" },
         ],
       },
     ],

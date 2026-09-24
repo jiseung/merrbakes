@@ -6,6 +6,7 @@ import type { Plate } from "@/content/option16";
 import { useCart } from "@/lib/cart";
 import { cartCopy as copy } from "@/content/cart";
 import StreamShoutoutFields from "@/components/StreamShoutoutFields";
+import TipPicker from "@/components/TipPicker";
 
 const plates: Record<Plate, string> = {
   choc: "radial-gradient(circle at 32% 28%,#c98a5e,transparent 55%),linear-gradient(140deg,#6b4429,#4a2c17)",
@@ -41,6 +42,8 @@ export default function CartDrawer() {
   const [giftMessage, setGiftMessage] = useState("");
   const [giftAddressFromMerr, setGiftAddressFromMerr] = useState(false);
   // name for Merr's on-stream alert (see src/lib/streamAlert.ts)
+  const [tipCents, setTipCents] = useState(0);
+  const [tipNote, setTipNote] = useState("");
   const [streamName, setStreamName] = useState("");
   const [streamAnonymous, setStreamAnonymous] = useState(false);
   const [checkingOut, setCheckingOut] = useState(false);
@@ -94,6 +97,8 @@ export default function CartDrawer() {
           gift: isGift ? { recipientName: giftRecipient, message: giftMessage, addressFromMerr: giftAddressFromMerr } : undefined,
           streamName,
           streamAnonymous,
+          tipCents,
+          tipNote,
         }),
       });
       const data = await res.json();
@@ -190,6 +195,12 @@ export default function CartDrawer() {
                        onChange={(e) => setPromoCode(e.target.value)}
                        className={inputClass} />
               </div>
+              <TipPicker
+                cents={tipCents} onCentsChange={setTipCents}
+                note={tipNote} onNoteChange={setTipNote}
+                inputClassName={inputClass}
+                labelClassName={`${prose} text-sm font-bold text-merrbakes-brown/70`}
+                chipClassName={(on) => `${prose} rounded-full px-3 py-1.5 text-base font-bold border-2 transition ${on ? "bg-merrbakes-berry text-white border-merrbakes-berry" : "bg-white text-merrbakes-brown border-merrbakes-brown/30 hover:border-merrbakes-berry"}`} />
               <StreamShoutoutFields
                 name={streamName} onNameChange={setStreamName}
                 anonymous={streamAnonymous} onAnonymousChange={setStreamAnonymous}

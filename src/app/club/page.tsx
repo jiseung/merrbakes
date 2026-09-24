@@ -9,11 +9,18 @@ import { useEffect, useState, FormEvent } from "react";
 import Image from "next/image";
 import { clubCopy as copy } from "@/content/club";
 import StorefrontHeader from "@/components/StorefrontHeader";
+import TipPicker from "@/components/TipPicker";
 import StreamShoutoutFields from "@/components/StreamShoutoutFields";
 
 type ClubOption = { variantId: string; name: string; price: string; tweats: number | null; isDefault: boolean };
 type Club = { id: string; name: string; interval: "week" | "month"; options: ClubOption[] };
-type ClubsResponse = { clubs: Club[]; weekly: { firstBoxCutoff: string; firstWeeklyCharge: string } };
+type ClubsResponse = { clubs: Club[]; weekly: { firstBoxCutoff: string; firstWeeklyCharge: string; skippedFridays: string[] } };
+
+// "YYYY-MM-DD" calendar date (no time) -> "friday, october 16"
+function formatDate(ymd: string): string {
+  const [y, m, d] = ymd.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleString("en-US", { timeZone: "UTC", weekday: "long", month: "long", day: "numeric" }).toLowerCase();
+}
 
 function formatDay(iso: string): string {
   return new Date(iso).toLocaleString("en-US", { timeZone: "America/Chicago", weekday: "long", month: "long", day: "numeric" }).toLowerCase();
@@ -103,6 +110,8 @@ export default function ClubPage() {
 
   const [email, setEmail] = useState("");
   // name for Merr's on-stream alert (see src/lib/streamAlert.ts)
+  const [tipCents, setTipCents] = useState(0);
+  const [tipNote, setTipNote] = useState("");
   const [streamName, setStreamName] = useState("");
   const [streamAnonymous, setStreamAnonymous] = useState(false);
   const [joinStatus, setJoinStatus] = useState<"idle" | "sending" | "error">("idle");
@@ -115,7 +124,7 @@ export default function ClubPage() {
       const res = await fetch("/api/subscribe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ variantId, email, streamName, streamAnonymous }),
+        body: JSON.stringify({ variantId, email, streamName, streamAnonymous, tipCents, tipNote }),
       });
       const d = await res.json();
       if (d.url) { window.location.href = d.url; return; }
@@ -317,6 +326,17 @@ export default function ClubPage() {
                   ? copy.join.weeklyBilling(option.price, formatDay(joinData.weekly.firstBoxCutoff), formatDay(joinData.weekly.firstWeeklyCharge))
                   : copy.join.monthlyBilling(option.price)}
               </p>
+              {club.interval === "week" && joinData.weekly.skippedFridays[0] && (
+                <p className={`${prose} text-base mt-2 opacity-90 max-w-3xl`}>{copy.join.cookieWeekNote(formatDate(joinData.weekly.skippedFridays[0]))}</p>
+              )}
+              <div className="mt-4 max-w-xl">
+                <TipPicker
+                  cents={tipCents} onCentsChange={setTipCents}
+                  note={tipNote} onNoteChange={setTipNote}
+                  inputClassName={`${prose} w-full mt-1 px-5 py-3 text-lg text-merrbakes-brown bg-white outline-none focus:ring-4 focus:ring-merrbakes-yellow`}
+                  labelClassName={`${prose} text-base font-bold`}
+                  chipClassName={(on) => `${prose} rounded-full px-4 py-2 text-base font-bold border-2 transition ${on ? "bg-merrbakes-yellow text-merrbakes-brown border-merrbakes-yellow" : "bg-white/10 text-white border-white/40 hover:border-white"}`} />
+              </div>
               <div className="mt-4 max-w-xl">
                 <StreamShoutoutFields
                   name={streamName} onNameChange={setStreamName}

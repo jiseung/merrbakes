@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { stripe } from '@/lib/stripe';
 import { notionHeaders, createOrderLineItems } from '@/lib/notion';
-import { sendStreamAlert, streamName } from '@/lib/streamAlert';
+import { sendStreamAlert, streamName, cleanStreamName } from '@/lib/streamAlert';
 
 const ORDERS_DB_ID = process.env.NOTION_ORDERS_DB_ID;
 const ORDER_LINE_ITEMS_DB_ID = process.env.NOTION_ORDER_LINE_ITEMS_DB_ID;
@@ -25,10 +25,16 @@ async function orderAlreadyRecorded(sessionId: string): Promise<boolean> {
 function sessionStreamName(session: Stripe.Checkout.Session): string {
   return streamName({
     anonymous: session.metadata?.stream_anonymous === 'yes',
-    chosenName: session.metadata?.stream_name,
+    // the standalone tip page asks via a Stripe custom field instead of our form
+    chosenName: session.metadata?.stream_name || cleanStreamName(customField(session, 'stream_name')),
     fullName: session.customer_details?.name,
   });
 }
+
+function customField(session: Stripe.Checkout.Session, key: string): string {
+  return session.custom_fields?.find((f) => f.key === key)?.text?.value ?? '';
+}
+
 
 function formatShipping(session: Stripe.Checkout.Session): string {
   const shipping = session.collected_information?.shipping_details;
@@ -64,12 +70,32 @@ export async function POST(req: NextRequest) {
   if (event.type === 'invoice.paid') {
     return recordSubscriptionInvoice(event.data.object as Stripe.Invoice);
   }
-  if (event.type !== 'checkout.session.completed') {
+  // a checkout is recorded once its money has actually cleared: at completion
+  // for cards, or later (async_payment_succeeded) for delayed methods like a
+  // bank payment through Link — so a bank payment that fails is never recorded
+  if (event.type !== 'checkout.session.completed' && event.type !== 'checkout.session.async_payment_succeeded') {
     return NextResponse.json({ ignored: true, type: event.type });
   }
 
   try {
     const session = event.data.object as Stripe.Checkout.Session;
+    if (session.payment_status === 'unpaid') {
+      return NextResponse.json({ ok: true, waitingForPayment: true });
+    }
+
+    // standalone tip (/api/tip): a stream alert like a Ko-fi donation, and no
+    // Orders row — tips aren't orders (owner, 2026-09-24). The note stays in
+    // Stripe; buyer messages never go on stream.
+    if (session.metadata?.tip === 'standalone') {
+      await sendStreamAlert({
+        source: 'merrbakes.com',
+        kind: 'donation',
+        name: sessionStreamName(session),
+        amount: (session.amount_total ?? 0) / 100,
+        summary: '',
+      });
+      return NextResponse.json({ ok: true, tip: true });
+    }
 
     if (await orderAlreadyRecorded(session.id)) {
       return NextResponse.json({ ok: true, duplicate: true });
@@ -118,7 +144,13 @@ export async function POST(req: NextRequest) {
     // level") — reading it back here avoids a second name-matching lookup.
     const relationIds = new Set<string>();
     const lineItemsToRecord: { title: string; variantId: string; quantity: number }[] = [];
-    const summaryLines = lineItems.data.map((li) => {
+    // a tip added in the cart rides along in Stripe but isn't part of the order
+    // (lib/tips: product metadata kind=tip) — left out of the Notion row
+    const orderLines = lineItems.data.filter((li) => {
+      const product = li.price?.product;
+      return !(typeof product === 'object' && product && !product.deleted && product.metadata?.kind === 'tip');
+    });
+    const summaryLines = orderLines.map((li) => {
       const product = li.price?.product;
       const notionPageId = typeof product === 'object' && product && !product.deleted ? product.metadata?.notion_page_id : undefined;
       if (notionPageId) {
@@ -175,7 +207,7 @@ export async function POST(req: NextRequest) {
       summary: summaryLines.join(', '),
     });
 
-    return NextResponse.json({ ok: true, unmatchedItems: lineItems.data.length - relationIds.size });
+    return NextResponse.json({ ok: true, unmatchedItems: orderLines.length - relationIds.size });
   } catch (error) {
     const err = error as Error;
     console.log('stripe-webhook error:', err.stack);
@@ -198,9 +230,9 @@ function formatCustomerShipping(shipping: Stripe.Invoice.CustomerShipping | null
 // the address collected at signup — used when an invoice has no
 // customer_shipping yet (the signup invoice can be paid before
 // checkout.session.completed has copied the address onto the customer)
-async function signupShipping(subscriptionId: string): Promise<string> {
+async function signupSession(subscriptionId: string): Promise<Stripe.Checkout.Session | null> {
   const sessions = await stripe.checkout.sessions.list({ subscription: subscriptionId, limit: 1 });
-  return sessions.data[0] ? formatShipping(sessions.data[0]) : '';
+  return sessions.data[0] ?? null;
 }
 
 // One Orders row (+ line items, so the packing-list rollups count it) per paid
@@ -223,6 +255,7 @@ async function recordSubscriptionInvoice(invoice: Stripe.Invoice) {
       if (line.amount <= 0) continue;
       const productId = line.pricing?.price_details?.product;
       const product = productId ? await stripe.products.retrieve(productId) : null;
+      if (product?.metadata?.kind === 'tip') continue; // signup tip — not part of the order
       const variantId = product?.metadata?.notion_page_id;
       const title = product?.name ?? line.description ?? 'Membership';
       if (variantId) {
@@ -234,8 +267,10 @@ async function recordSubscriptionInvoice(invoice: Stripe.Invoice) {
 
     const subscriptionRef = invoice.parent.subscription_details.subscription;
     const subscriptionId = typeof subscriptionRef === 'string' ? subscriptionRef : subscriptionRef.id;
-    const shippingText = formatCustomerShipping(invoice.customer_shipping) || await signupShipping(subscriptionId);
-    const label = invoice.billing_reason === 'subscription_create' ? 'first box' : 'renewal';
+    const isSignupInvoice = invoice.billing_reason === 'subscription_create';
+    const session = isSignupInvoice || !invoice.customer_shipping ? await signupSession(subscriptionId) : null;
+    const shippingText = formatCustomerShipping(invoice.customer_shipping) || (session ? formatShipping(session) : '');
+    const label = isSignupInvoice ? 'first box' : 'renewal';
 
     const notionRes = await fetch('https://api.notion.com/v1/pages', {
       method: 'POST',

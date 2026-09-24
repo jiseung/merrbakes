@@ -4,6 +4,8 @@ import { fetchVariantForCheckout } from '@/lib/notion';
 import { syncStripePrice } from '@/lib/reconcile';
 import { displayName } from '@/lib/shopItems';
 import { firstRecurringCharge } from '@/lib/billing';
+import { skippedFridays } from '@/lib/cookieWeek';
+import { parseTip, tipLineItem } from '@/lib/tips';
 import { cleanStreamName } from '@/lib/streamAlert';
 
 // Membership signup via Stripe Checkout in subscription mode (called from
@@ -17,7 +19,9 @@ import { cleanStreamName } from '@/lib/streamAlert';
 // Members manage/switch through /api/clubs/manage.
 export async function POST(req: NextRequest) {
   try {
-    const { variantId, email, streamName, streamAnonymous } = await req.json();
+    const { variantId, email, streamName, streamAnonymous, tipCents, tipNote } = await req.json();
+    // optional one-time tip, charged with the signup (not every renewal)
+    const tip = parseTip(tipCents, tipNote);
     if (typeof variantId !== 'string') {
       return NextResponse.json({ error: 'pick a level' }, { status: 400 });
     }
@@ -59,15 +63,19 @@ export async function POST(req: NextRequest) {
           },
           quantity: 1,
         }] : []),
+        ...(tip ? [tipLineItem(tip.cents)] : []),
       ],
       ...(trimmedEmail ? { customer_email: trimmedEmail } : {}),
       // on-stream alert name, read back in /api/stripe-webhook (see lib/streamAlert)
       metadata: {
         stream_name: cleanStreamName(streamName),
         stream_anonymous: streamAnonymous === true ? 'yes' : '',
+        tip_cents: tip ? String(tip.cents) : '',
+        tip_note: tip?.note ?? '',
       },
       subscription_data: {
-        ...(weekly ? { trial_end: Math.floor(firstRecurringCharge().getTime() / 1000) } : {}),
+        // first box / first weekly charge both step over the Friday before cookie club week
+        ...(weekly ? { trial_end: Math.floor(firstRecurringCharge(new Date(), await skippedFridays()).getTime() / 1000) } : {}),
         metadata: { notion_variant_id: variant.id },
       },
       shipping_address_collection: { allowed_countries: ['US'] },

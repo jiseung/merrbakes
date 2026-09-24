@@ -15,6 +15,7 @@ export type OrderItem = {
   hasFile: boolean;
   // memberships only: how often it bills
   membership: 'week' | 'month' | null;
+  tip: boolean; // a tip line (src/lib/tips.ts)
 };
 
 export type DigitalFile = { url: string; filename: string };
@@ -55,7 +56,8 @@ export async function getPaidOrder(sessionId: string): Promise<{ email: string |
   const lineItems = await stripe.checkout.sessions.listLineItems(sessionId, { limit: 100, expand: ['data.price.product'] });
   const items = await Promise.all(lineItems.data.map(async (li): Promise<OrderItem> => {
     const product = li.price?.product;
-    const variantId = typeof product === 'object' && product && !product.deleted ? product.metadata?.notion_page_id ?? '' : '';
+    const productMeta = typeof product === 'object' && product && !product.deleted ? product.metadata : undefined;
+    const variantId = productMeta?.notion_page_id ?? '';
     const shopItem = variantId ? await shopItemForVariant(variantId) : null;
     const type = shopItem?.properties?.Type?.select?.name;
     const digital = type === 'Digital';
@@ -68,6 +70,7 @@ export async function getPaidOrder(sessionId: string): Promise<{ email: string |
       membership: type === 'Recurring'
         ? (shopItem?.properties?.['Billing Interval']?.select?.name === 'week' ? 'week' : 'month')
         : null,
+      tip: productMeta?.kind === 'tip',
     };
   }));
 
