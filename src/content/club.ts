@@ -55,10 +55,8 @@ export const clubCopy = {
     featuredBadge: "most loved",
     newBadge: "NEW!",
     // tier card buttons — "join here" scrolls to the join section below with
-    // that club picked; monthly clubs keep a Ko-fi option for people who prefer it
+    // that club picked
     joinHereLabel: (tier: string) => `join ${tier}`,
-    orKofiLabel: "or join on ko-fi →",
-    kofiHref: "https://ko-fi.com/merrbakes",
   },
 
   // replaces the old mailing-list box: signup for every club sold on
