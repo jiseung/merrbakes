@@ -4,7 +4,8 @@
 // instead — one MixItUp command covers Ko-fi and merrbakes.com alike.
 // - new signups only, never renewals (weekly Tweat / monthly Ko-fi charges)
 // - no buyer messages on stream
-// - name: "Anonymous" if they opted out, else their Twitch handle, else first name
+// - name: "Anonymous" if they opted out, else the "name shown on stream" they
+//   typed at checkout, else their first name
 //
 // MIXITUP_WEBHOOK_URL is MixItUp's webhook trigger URL (it embeds a secret —
 // anyone holding it can fire the alert). Unset = alerts off.
@@ -21,16 +22,17 @@ export type StreamAlert = {
 
 const ANONYMOUS = 'Anonymous';
 
-// Twitch logins are 4–25 chars of letters, digits and underscores
-export function cleanTwitchHandle(raw: unknown): string {
+export const STREAM_NAME_MAX = 30;
+
+// free text from the checkout form: single line, trimmed, capped
+export function cleanStreamName(raw: unknown): string {
   if (typeof raw !== 'string') return '';
-  const handle = raw.trim().replace(/^@/, '').replace(/^(https?:\/\/)?(www\.)?twitch\.tv\//i, '');
-  return /^[A-Za-z0-9_]{1,25}$/.test(handle) ? handle : '';
+  return raw.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, STREAM_NAME_MAX);
 }
 
-export function streamName(opts: { anonymous?: boolean; twitchHandle?: string; fullName?: string | null }): string {
+export function streamName(opts: { anonymous?: boolean; chosenName?: string; fullName?: string | null }): string {
   if (opts.anonymous) return ANONYMOUS;
-  if (opts.twitchHandle) return opts.twitchHandle;
+  if (opts.chosenName) return opts.chosenName;
   const first = (opts.fullName ?? '').trim().split(/\s+/)[0];
   return first || ANONYMOUS;
 }

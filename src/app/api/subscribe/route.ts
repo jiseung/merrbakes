@@ -4,7 +4,7 @@ import { fetchVariantForCheckout } from '@/lib/notion';
 import { syncStripePrice } from '@/lib/reconcile';
 import { displayName } from '@/lib/shopItems';
 import { firstRecurringCharge } from '@/lib/billing';
-import { cleanTwitchHandle } from '@/lib/streamAlert';
+import { cleanStreamName } from '@/lib/streamAlert';
 
 // Membership signup via Stripe Checkout in subscription mode (called from
 // /club's join section). Card payments only (owner: no bank payments).
@@ -17,7 +17,7 @@ import { cleanTwitchHandle } from '@/lib/streamAlert';
 // Members manage/switch through /api/clubs/manage.
 export async function POST(req: NextRequest) {
   try {
-    const { variantId, email, twitchHandle, streamAnonymous } = await req.json();
+    const { variantId, email, streamName, streamAnonymous } = await req.json();
     if (typeof variantId !== 'string') {
       return NextResponse.json({ error: 'pick a level' }, { status: 400 });
     }
@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
       ...(trimmedEmail ? { customer_email: trimmedEmail } : {}),
       // on-stream alert name, read back in /api/stripe-webhook (see lib/streamAlert)
       metadata: {
-        twitch_handle: cleanTwitchHandle(twitchHandle),
+        stream_name: cleanStreamName(streamName),
         stream_anonymous: streamAnonymous === true ? 'yes' : '',
       },
       subscription_data: {

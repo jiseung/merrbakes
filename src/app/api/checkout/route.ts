@@ -4,7 +4,7 @@ import { fetchVariantForCheckout, notionHeaders } from '@/lib/notion';
 import { syncStripePrice } from '@/lib/reconcile';
 import { displayName } from '@/lib/shopItems';
 import { isClubWeekCode } from '@/lib/promo';
-import { cleanTwitchHandle } from '@/lib/streamAlert';
+import { cleanStreamName } from '@/lib/streamAlert';
 
 const ORDERS_DB_ID = process.env.NOTION_ORDERS_DB_ID;
 
@@ -71,7 +71,7 @@ function computeShippingCents(
 
 export async function POST(req: NextRequest) {
   try {
-    const { items, email, referredBy, promoCode, gift, twitchHandle, streamAnonymous } = await req.json();
+    const { items, email, referredBy, promoCode, gift, streamName, streamAnonymous } = await req.json();
     if (!Array.isArray(items) || items.length === 0) {
       return NextResponse.json({ error: 'missing items' }, { status: 400 });
     }
@@ -186,7 +186,7 @@ export async function POST(req: NextRequest) {
         gift_address_from_merr: giftAddressFromMerr ? 'yes' : '',
         club_week_code: dropApplied ? 'yes' : '',
         // on-stream alert name, read back in /api/stripe-webhook (see lib/streamAlert)
-        twitch_handle: cleanTwitchHandle(twitchHandle),
+        stream_name: cleanStreamName(streamName),
         stream_anonymous: streamAnonymous === true ? 'yes' : '',
       },
       // these are baked-to-order and shipped — collect an address so a completed

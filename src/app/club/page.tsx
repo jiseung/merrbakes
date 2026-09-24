@@ -103,7 +103,7 @@ export default function ClubPage() {
 
   const [email, setEmail] = useState("");
   // name for Merr's on-stream alert (see src/lib/streamAlert.ts)
-  const [twitchHandle, setTwitchHandle] = useState("");
+  const [streamName, setStreamName] = useState("");
   const [streamAnonymous, setStreamAnonymous] = useState(false);
   const [joinStatus, setJoinStatus] = useState<"idle" | "sending" | "error">("idle");
   const [joinError, setJoinError] = useState("");
@@ -115,7 +115,7 @@ export default function ClubPage() {
       const res = await fetch("/api/subscribe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ variantId, email, twitchHandle, streamAnonymous }),
+        body: JSON.stringify({ variantId, email, streamName, streamAnonymous }),
       });
       const d = await res.json();
       if (d.url) { window.location.href = d.url; return; }
@@ -319,7 +319,7 @@ export default function ClubPage() {
               </p>
               <div className="mt-4 max-w-xl">
                 <StreamShoutoutFields
-                  twitchHandle={twitchHandle} onTwitchHandleChange={setTwitchHandle}
+                  name={streamName} onNameChange={setStreamName}
                   anonymous={streamAnonymous} onAnonymousChange={setStreamAnonymous}
                   inputClassName={`${prose} w-full mt-1 rounded-full px-5 py-3 text-lg text-merrbakes-brown bg-white outline-none focus:ring-4 focus:ring-merrbakes-yellow`}
                   labelClassName={`${prose} text-base font-bold`}

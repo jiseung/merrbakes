@@ -25,7 +25,7 @@ async function orderAlreadyRecorded(sessionId: string): Promise<boolean> {
 function sessionStreamName(session: Stripe.Checkout.Session): string {
   return streamName({
     anonymous: session.metadata?.stream_anonymous === 'yes',
-    twitchHandle: session.metadata?.twitch_handle,
+    chosenName: session.metadata?.stream_name,
     fullName: session.customer_details?.name,
   });
 }

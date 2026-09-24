@@ -3,8 +3,11 @@
 // on-stream alert (see src/lib/streamAlert.ts) — this is where buyers pick the name.
 
 export const shoutoutCopy = {
-  twitchLabel: "twitch username (optional)",
-  twitchPlaceholder: "for your shout-out on stream",
-  twitchHint: "no username? we'll just use your first name.",
-  anonymousLabel: "keep me anonymous on stream",
+  nameLabel: "name shown on stream",
+  namePlaceholder: "your first name",
+  // the site doesn't know their name until Stripe's page, so a blank field
+  // falls back to the first name they enter there
+  nameHint: "leave blank and we'll use your first name.",
+  anonymousLabel: "keep me anonymous",
+  anonymousName: "Anonymous",
 };

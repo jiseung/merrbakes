@@ -41,7 +41,7 @@ export default function CartDrawer() {
   const [giftMessage, setGiftMessage] = useState("");
   const [giftAddressFromMerr, setGiftAddressFromMerr] = useState(false);
   // name for Merr's on-stream alert (see src/lib/streamAlert.ts)
-  const [twitchHandle, setTwitchHandle] = useState("");
+  const [streamName, setStreamName] = useState("");
   const [streamAnonymous, setStreamAnonymous] = useState(false);
   const [checkingOut, setCheckingOut] = useState(false);
   const [error, setError] = useState("");
@@ -92,7 +92,7 @@ export default function CartDrawer() {
           referredBy: status === "new" ? referredBy : "",
           promoCode,
           gift: isGift ? { recipientName: giftRecipient, message: giftMessage, addressFromMerr: giftAddressFromMerr } : undefined,
-          twitchHandle,
+          streamName,
           streamAnonymous,
         }),
       });
@@ -191,7 +191,7 @@ export default function CartDrawer() {
                        className={inputClass} />
               </div>
               <StreamShoutoutFields
-                twitchHandle={twitchHandle} onTwitchHandleChange={setTwitchHandle}
+                name={streamName} onNameChange={setStreamName}
                 anonymous={streamAnonymous} onAnonymousChange={setStreamAnonymous}
                 inputClassName={inputClass}
                 labelClassName={`${prose} text-sm font-bold text-merrbakes-brown/70`}
