@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { KofiAPIResponseType, KofiWebhookPayloadType } from '../types';
 import { SHOP_ITEMS_DB_ID, VARIANTS_DB_ID, notionHeaders, createOrderLineItems } from '@/lib/notion';
-import { kofiStreamName, sendStreamAlert } from '@/lib/streamAlert';
+import { alertSummary, kofiStreamName, sendStreamAlert } from '@/lib/streamAlert';
 
 const ORDERS_DB_ID = process.env.NOTION_ORDERS_DB_ID;
 const ORDER_LINE_ITEMS_DB_ID = process.env.NOTION_ORDER_LINE_ITEMS_DB_ID;
@@ -206,7 +206,6 @@ export async function POST(req: NextRequest) {
         source: 'Ko-fi',
         kind: 'donation',
         name: kofiStreamName(payload.from_name, payload.is_public),
-        amount: parseFloat(payload.amount) || 0,
         summary: '',
       });
       return NextResponse.json({ ok: true, donation: true });
@@ -266,7 +265,6 @@ export async function POST(req: NextRequest) {
           source: 'Ko-fi',
           kind: 'subscription',
           name: kofiStreamName(payload.from_name, payload.is_public),
-          amount: parseFloat(payload.amount) || 0,
           summary: payload.tier_name ?? '',
         });
       }
@@ -287,6 +285,7 @@ export async function POST(req: NextRequest) {
     const items = payload.shop_items ?? [];
     const relationIds = new Set<string>();
     const lineItemsToRecord: { title: string; variantId: string; quantity: number }[] = [];
+    const alertItemNames: string[] = [];
     const summaryLines = items.map((item) => {
       const name = itemNamesByAlias.get(item.direct_link_code) ?? item.direct_link_code;
       const shopItemId = shopItemIdsByName.get(name.toLowerCase());
@@ -296,6 +295,7 @@ export async function POST(req: NextRequest) {
         relationIds.add(variant.id);
         lineItemsToRecord.push({ title: `${name}${variation}`, variantId: variant.id, quantity: item.quantity });
       }
+      alertItemNames.push(item.variation_name ? `${name} — ${item.variation_name}` : name);
       return `${item.quantity}x ${name}${variation}`;
     });
 
@@ -322,8 +322,7 @@ export async function POST(req: NextRequest) {
       source: 'Ko-fi',
       kind: 'purchase',
       name: kofiStreamName(payload.from_name, payload.is_public),
-      amount: parseFloat(payload.amount) || 0,
-      summary: summaryLines.join(', '),
+      summary: alertSummary(alertItemNames),
     });
 
     return NextResponse.json({ ok: true, unmatchedItems: items.length - relationIds.size });

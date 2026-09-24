@@ -11,3 +11,11 @@ export const shoutoutCopy = {
   anonymousLabel: "keep me anonymous",
   anonymousName: "Anonymous",
 };
+
+// Wording sent with each on-stream alert (src/lib/streamAlert.ts), keyed by kind.
+// Merr's MixItUp command shows it as e.g. "CookieFan just bought Croissants!"
+export const alertPhrases = {
+  purchase: "just bought",
+  subscription: "just joined",
+  donation: "just donated",
+};

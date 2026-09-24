@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { stripe } from '@/lib/stripe';
 import { notionHeaders, createOrderLineItems } from '@/lib/notion';
-import { sendStreamAlert, streamName, cleanStreamName } from '@/lib/streamAlert';
+import { alertSummary, sendStreamAlert, streamName, cleanStreamName } from '@/lib/streamAlert';
 
 const ORDERS_DB_ID = process.env.NOTION_ORDERS_DB_ID;
 const ORDER_LINE_ITEMS_DB_ID = process.env.NOTION_ORDER_LINE_ITEMS_DB_ID;
@@ -91,7 +91,6 @@ export async function POST(req: NextRequest) {
         source: 'merrbakes.com',
         kind: 'donation',
         name: sessionStreamName(session),
-        amount: (session.amount_total ?? 0) / 100,
         summary: '',
       });
       return NextResponse.json({ ok: true, tip: true });
@@ -133,7 +132,6 @@ export async function POST(req: NextRequest) {
         source: 'merrbakes.com',
         kind: 'subscription',
         name: sessionStreamName(session),
-        amount: (session.amount_total ?? 0) / 100,
         summary: lineItems.data[0]?.description ?? '',
       });
       return NextResponse.json({ ok: true, subscriptionSignup: true });
@@ -203,8 +201,9 @@ export async function POST(req: NextRequest) {
       source: 'merrbakes.com',
       kind: 'purchase',
       name: sessionStreamName(session),
-      amount: (session.amount_total ?? 0) / 100,
-      summary: summaryLines.join(', '),
+      // item — variant names without quantities; the shipping line that
+      // name-only gifts add as a line item isn't an item
+      summary: alertSummary(orderLines.map((li) => li.description ?? '').filter((d) => !d.startsWith('Shipping'))),
     });
 
     return NextResponse.json({ ok: true, unmatchedItems: orderLines.length - relationIds.size });

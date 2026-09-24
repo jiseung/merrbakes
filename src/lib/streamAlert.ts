@@ -3,12 +3,14 @@
 // the Notion Orders rows, so both webhook routes forward a normalized event here
 // instead — one MixItUp command covers Ko-fi and merrbakes.com alike.
 // - new signups only, never renewals (weekly Tweat / monthly Ko-fi charges)
-// - no buyer messages on stream
+// - no buyer messages or amounts on stream; items are listed without quantities
 // - name: "Anonymous" if they opted out, else the "name shown on stream" they
 //   typed at checkout, else their first name
 //
 // MIXITUP_WEBHOOK_URL is MixItUp's webhook trigger URL (it embeds a secret —
 // anyone holding it can fire the alert). Unset = alerts off.
+
+import { alertPhrases } from '@/content/shoutout';
 
 export type StreamAlertKind = 'purchase' | 'subscription' | 'donation';
 
@@ -16,9 +18,13 @@ export type StreamAlert = {
   source: 'Ko-fi' | 'merrbakes.com';
   kind: StreamAlertKind;
   name: string;
-  amount: number;
   summary: string; // items bought / club tier; empty for donations
 };
+
+// item names ("Morning Buns! — trio of buns") → one line, repeats dropped
+export function alertSummary(itemNames: string[]): string {
+  return Array.from(new Set(itemNames.map((n) => n.trim()).filter(Boolean))).join(', ');
+}
 
 const ANONYMOUS = 'Anonymous';
 
@@ -52,7 +58,9 @@ export async function sendStreamAlert(alert: StreamAlert): Promise<void> {
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...alert, amountDisplay: `$${alert.amount.toFixed(2)}` }),
+      // phrase = ready-made wording per kind, so Merr's MixItUp command can be
+      // one line ("{name} {phrase} {summary}") with no conditions
+      body: JSON.stringify({ ...alert, phrase: alertPhrases[alert.kind] }),
       signal: AbortSignal.timeout(4000),
     });
     if (!res.ok) console.log('stream alert: MixItUp returned', res.status);
