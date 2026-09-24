@@ -18,6 +18,13 @@ export const orderCopy = {
     leaveWarning: "you haven't downloaded all your recipes yet — leave anyway?",
   },
 
+  membership: {
+    heading: "🎉 welcome to the club!",
+    // {code} = the club week code
+    perk: (code: string) => `your member perk: free shipping on club week drops. when merr posts the drop, use code "${code}" at checkout.`,
+    manage: "change or cancel your membership any time →",
+  },
+
   notFound: {
     heading: "we couldn't find that order",
     subhead: "if you just paid, give it a moment and refresh. still missing? message merr and she'll help.",

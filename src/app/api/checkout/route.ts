@@ -159,6 +159,9 @@ export async function POST(req: NextRequest) {
     const origin = new URL(req.url).origin;
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
+      // cards only (incl. Apple/Google Pay) — no bank payments (owner, 2026-09-24):
+      // those settle days later, after the order is already recorded
+      payment_method_types: ['card'],
       line_items: lineItems,
       // one-time payments default to customer_creation: 'if_required', which
       // often skips creating a retained Customer record — without this, most

@@ -24,11 +24,13 @@ export default function OrderPage({ params }: { params: Promise<{ session: strin
 
   // undefined = loading, null = not found / not paid
   const [items, setItems] = useState<OrderItem[] | null | undefined>(undefined);
+  const [perkCode, setPerkCode] = useState<string | null>(null);
   useEffect(() => {
     fetch(`/api/order/${encodeURIComponent(session)}`, { cache: "no-store" })
       .then((res) => (res.ok ? res.json() : null))
       .then((d) => {
         setItems(Array.isArray(d?.items) ? d.items : null);
+        setPerkCode(typeof d?.clubWeekCode === "string" ? d.clubWeekCode : null);
         if (Array.isArray(d?.items)) clear(); // paid — the cart's done its job
       })
       .catch(() => setItems(null));
@@ -37,6 +39,7 @@ export default function OrderPage({ params }: { params: Promise<{ session: strin
 
   const downloads = (items ?? []).filter((i) => i.digital);
   const others = (items ?? []).filter((i) => !i.digital);
+  const isMember = (items ?? []).some((i) => i.membership);
   const [downloaded, setDownloaded] = useState<Set<string>>(new Set());
   const pending = downloads.filter((d) => d.hasFile && !downloaded.has(d.variantId)).length;
 
@@ -92,6 +95,14 @@ export default function OrderPage({ params }: { params: Promise<{ session: strin
                     </li>
                   ))}
                 </ul>
+              </section>
+            )}
+
+            {isMember && (
+              <section className="mt-8 rounded-3xl bg-merrbakes-green/60 border-2 border-merrbakes-brown/20 p-6">
+                <h2 className="text-3xl font-black">{copy.membership.heading}</h2>
+                {perkCode && <p className={`${prose} text-lg font-semibold mt-2`}>{copy.membership.perk(perkCode)}</p>}
+                <a href="/api/clubs/manage" className="inline-block mt-3 text-lg font-bold text-merrbakes-berry hover:underline">{copy.membership.manage}</a>
               </section>
             )}
 

@@ -2,13 +2,21 @@
 // /club — a dedicated membership landing page. The nav is pulled verbatim from
 // option16, and this page owns the only tier-pricing cards site-wide (option16's
 // club section links here instead of duplicating them). The rest of the page
-// (how it works, benefits, faq) lives in content/club.ts — the final section is
-// option16's own email lead magnet, verbatim (copy + behavior), not a club-specific one.
-import { useEffect, useState } from "react";
+// (how it works, benefits, faq, join) lives in content/club.ts. The final #join
+// section signs people up on merrbakes.com (Stripe subscriptions via
+// /api/subscribe) for any club; the monthly clubs can still be joined on Ko-fi.
+import { useEffect, useState, FormEvent } from "react";
 import Image from "next/image";
 import { clubCopy as copy } from "@/content/club";
-import { option16Copy } from "@/content/option16";
 import StorefrontHeader from "@/components/StorefrontHeader";
+
+type ClubOption = { variantId: string; name: string; price: string; tweats: number | null; isDefault: boolean };
+type Club = { id: string; name: string; interval: "week" | "month"; options: ClubOption[] };
+type ClubsResponse = { clubs: Club[]; weekly: { firstBoxCutoff: string; firstWeeklyCharge: string } };
+
+function formatDay(iso: string): string {
+  return new Date(iso).toLocaleString("en-US", { timeZone: "America/Chicago", weekday: "long", month: "long", day: "numeric" }).toLowerCase();
+}
 
 const prose = "font-sans";
 const eyebrow = "text-merrbakes-berry text-lg font-bold lowercase tracking-wide";
@@ -65,27 +73,53 @@ export default function ClubPage() {
       .finally(() => setPriceLoaded(true));
   }, []);
 
-  // mailing-list lead magnet — same copy/behavior as option16's, wired to the
-  // same real /api/join endpoint.
+  // join section — every club sold on merrbakes.com, live from Notion.
+  // undefined = loading, null = unavailable
+  const [joinData, setJoinData] = useState<ClubsResponse | null | undefined>(undefined);
+  const [clubId, setClubId] = useState<string | null>(null);
+  const [variantId, setVariantId] = useState<string | null>(null);
+  useEffect(() => {
+    fetch("/api/clubs", { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((d: ClubsResponse | null) => {
+        const ok = d && Array.isArray(d.clubs) && d.clubs.length > 0;
+        setJoinData(ok ? d : null);
+        if (ok) pickClub(d.clubs[0]);
+      })
+      .catch(() => setJoinData(null));
+  }, []);
+  function pickClub(club: Club) {
+    setClubId(club.id);
+    setVariantId((club.options.find((o) => o.isDefault) ?? club.options[0]).variantId);
+  }
+  // tier card "join here" → pick that club in the join section (the link scrolls there)
+  function pickClubByName(name: string) {
+    const club = joinData?.clubs.find((c) => normalizeName(c.name) === normalizeName(name));
+    if (club) pickClub(club);
+  }
+  const club = joinData?.clubs.find((c) => c.id === clubId) ?? null;
+  const option = club?.options.find((o) => o.variantId === variantId) ?? null;
+
   const [email, setEmail] = useState("");
-  const [sendRecipe, setSendRecipe] = useState(true);
-  const [joined, setJoined] = useState(false);
-  const [err, setErr] = useState("");
-  async function join() {
-    if (!email || email.indexOf("@") < 1) { setErr(option16Copy.emailMagnet.errorBadEmail); return; }
-    setErr("");
+  const [joinStatus, setJoinStatus] = useState<"idle" | "sending" | "error">("idle");
+  const [joinError, setJoinError] = useState("");
+  async function subscribe(e: FormEvent) {
+    e.preventDefault();
+    if (!variantId) return;
+    setJoinStatus("sending");
     try {
-      const res = await fetch("/api/join", {
+      const res = await fetch("/api/subscribe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ variantId, email }),
       });
-      const data = await res.json();
-      if (data.success) setJoined(true);
-      else setErr(option16Copy.emailMagnet.errorSubmitFailed);
+      const d = await res.json();
+      if (d.url) { window.location.href = d.url; return; }
+      setJoinError(d.error || copy.join.errorMessage);
     } catch {
-      setErr(option16Copy.emailMagnet.errorSubmitFailed);
+      setJoinError(copy.join.errorMessage);
     }
+    setJoinStatus("error");
   }
 
   return (
@@ -146,11 +180,16 @@ export default function ClubPage() {
               </ul>
               {/* weekly club signs up on merrbakes.com (/tweat, Stripe); the monthly
                   clubs are Ko-fi memberships */}
-              <a href={t.billing === "wk" ? "/tweat" : "https://ko-fi.com/merrbakes"}
-                 {...(t.billing === "wk" ? {} : { target: "_blank", rel: "noreferrer" })}
+              <a href="#join" onClick={() => pickClubByName(t.name)}
                  className={`block text-center rounded-full py-3 text-xl font-bold transition ${t.featured ? "bg-merrbakes-berry text-white hover:opacity-85" : "bg-white text-merrbakes-brown border-2 border-merrbakes-brown/60 hover:border-merrbakes-berry"}`}>
-                join {t.name.replace(" Club", "")}
+                {copy.hero.joinHereLabel(t.name.replace(" Club", ""))}
               </a>
+              {t.billing !== "wk" && (
+                <a href={copy.hero.kofiHref} target="_blank" rel="noreferrer"
+                   className={`${prose} block text-center text-base font-bold text-merrbakes-brown/60 hover:text-merrbakes-berry underline mt-2`}>
+                  {copy.hero.orKofiLabel}
+                </a>
+              )}
             </div>
           ))}
         </div>
@@ -224,36 +263,73 @@ export default function ClubPage() {
         </div>
       </section>
 
-      {/* EMAIL LEAD MAGNET — same section as option16's, verbatim */}
-      <section className="bg-gradient-to-br from-twitch-purple to-merrbakes-berry text-white">
-        <div className="max-w-6xl mx-auto px-5 py-16 grid lg:grid-cols-2 gap-8 items-center">
-          <div>
-            <h2 className="text-4xl font-black mt-1 text-merrbakes-yellow">{option16Copy.emailMagnet.heading}</h2>
-            <p className={`${prose} text-xl mt-3 opacity-90 max-w-lg`}>
-              {option16Copy.emailMagnet.subhead}
-            </p>
-          </div>
-          <div className="bg-white/10 border border-white/25 rounded-3xl p-6">
-            {joined ? (
-              <div className={`${prose} text-2xl text-white py-3`}>{option16Copy.emailMagnet.successMessage}</div>
-            ) : (
-              <>
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <input id="ml" type="email" value={email} placeholder={option16Copy.emailMagnet.inputPlaceholder} autoComplete="email"
-                         aria-label={option16Copy.emailMagnet.formLabel}
-                         onChange={(e) => setEmail(e.target.value)}
-                         className={`${prose} flex-1 rounded-full px-5 py-3 text-lg text-merrbakes-brown bg-white outline-none focus:ring-4 focus:ring-merrbakes-yellow`} />
-                  <button type="button" onClick={join}
-                          className="bg-merrbakes-yellow text-merrbakes-brown rounded-full px-6 py-3 text-xl font-bold hover:opacity-90 transition whitespace-nowrap">{option16Copy.emailMagnet.submitButton}</button>
-                </div>
-                <label className={`${prose} flex items-center gap-2 mt-3 text-base font-semibold text-white/90 cursor-pointer`}>
-                  <input type="checkbox" checked={sendRecipe} onChange={(e) => setSendRecipe(e.target.checked)}
-                         className="w-4 h-4 rounded accent-merrbakes-yellow" />
-                  send me the recipe
-                </label>
-                <div className={`${prose} opacity-80 text-base mt-3`}>{err || option16Copy.emailMagnet.helperText}</div>
-              </>
-            )}
+      {/* JOIN — signup on merrbakes.com for any club (Stripe subscription) */}
+      <section id="join" className="bg-gradient-to-br from-twitch-purple to-merrbakes-berry text-white scroll-mt-20">
+        <div className="max-w-5xl mx-auto px-5 py-16">
+          <div className="text-merrbakes-yellow text-lg font-bold lowercase tracking-wide">{copy.join.eyebrow}</div>
+          <h2 className="text-4xl font-black mt-1 text-merrbakes-yellow">{copy.join.heading}</h2>
+          <p className={`${prose} text-xl mt-3 font-semibold`}>{copy.join.perk}</p>
+
+          {joinData === undefined ? (
+            <div className="grid sm:grid-cols-4 gap-3 mt-8">
+              {Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-16 rounded-2xl bg-white/20 animate-pulse" />)}
+            </div>
+          ) : joinData === null || !club || !option ? (
+            <p className={`${prose} text-xl mt-8`}>{copy.join.unavailable}</p>
+          ) : (
+            <form onSubmit={subscribe} className="mt-8">
+              <div className="text-2xl font-black">{copy.join.pickClub}</div>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-3" role="radiogroup">
+                {joinData.clubs.map((c) => (
+                  <button key={c.id} type="button" role="radio" aria-checked={c.id === clubId} onClick={() => pickClub(c)}
+                          className={`rounded-2xl px-4 py-3 text-left text-merrbakes-brown bg-white border-4 transition ${c.id === clubId ? "border-merrbakes-yellow shadow-md" : "border-transparent opacity-85 hover:opacity-100"}`}>
+                    <div className="text-xl font-black leading-tight">{c.name}</div>
+                    <div className={`${prose} text-sm font-semibold text-merrbakes-brown/70 mt-1`}>
+                      {c.options[0].price}{c.options.length > 1 ? "+" : ""} {c.interval === "week" ? copy.join.perWeek : copy.join.perMonth}
+                    </div>
+                  </button>
+                ))}
+              </div>
+
+              {club.options.length > 1 && (
+                <>
+                  <div className="text-2xl font-black mt-8">{copy.join.pickLevel}</div>
+                  <div className="grid sm:grid-cols-3 gap-3 mt-3" role="radiogroup">
+                    {club.options.map((o) => (
+                      <button key={o.variantId} type="button" role="radio" aria-checked={o.variantId === variantId} onClick={() => setVariantId(o.variantId)}
+                              className={`rounded-2xl px-4 py-3 text-left text-merrbakes-brown bg-white border-4 transition ${o.variantId === variantId ? "border-merrbakes-yellow shadow-md" : "border-transparent opacity-85 hover:opacity-100"}`}>
+                        <div className="text-xl font-black">{o.name}</div>
+                        <div className="text-2xl font-black text-merrbakes-berry">{o.price} <span className="text-base text-merrbakes-brown/60">{club.interval === "week" ? copy.join.perWeek : copy.join.perMonth}</span></div>
+                        {o.tweats != null && <div className={`${prose} text-sm mt-1`}>{copy.join.tweatsPerWeek(o.tweats)}</div>}
+                      </button>
+                    ))}
+                  </div>
+                  {club.interval === "week" && <p className={`${prose} text-base mt-2 opacity-90`}>{copy.join.levelNote}</p>}
+                </>
+              )}
+
+              <p className={`${prose} text-lg font-semibold mt-8 max-w-3xl`}>
+                {club.interval === "week"
+                  ? copy.join.weeklyBilling(option.price, formatDay(joinData.weekly.firstBoxCutoff), formatDay(joinData.weekly.firstWeeklyCharge))
+                  : copy.join.monthlyBilling(option.price)}
+              </p>
+              <div className="mt-4 flex flex-col sm:flex-row gap-3 max-w-xl">
+                <input type="email" value={email} placeholder={copy.join.emailPlaceholder} aria-label={copy.join.emailLabel} autoComplete="email"
+                       onChange={(e) => setEmail(e.target.value)}
+                       className={`${prose} flex-1 rounded-full px-5 py-3 text-lg text-merrbakes-brown bg-white outline-none focus:ring-4 focus:ring-merrbakes-yellow`} />
+                <button type="submit" disabled={joinStatus === "sending"}
+                        className="bg-merrbakes-yellow text-merrbakes-brown rounded-full px-6 py-3 text-xl font-bold hover:opacity-90 transition whitespace-nowrap disabled:opacity-60">
+                  {joinStatus === "sending" ? copy.join.submittingLabel : copy.join.submitLabel}
+                </button>
+              </div>
+              {joinStatus === "error" && <p className={`${prose} text-base mt-2 font-semibold`}>{joinError}</p>}
+            </form>
+          )}
+
+          <div className="mt-12 rounded-3xl bg-white/10 border border-white/25 p-6">
+            <h3 className="text-2xl font-black">{copy.join.manage.heading}</h3>
+            <p className={`${prose} text-lg mt-1 opacity-90`}>{copy.join.manage.body}</p>
+            <a href="/api/clubs/manage" className="inline-block mt-3 text-xl font-bold text-merrbakes-yellow hover:underline">{copy.join.manage.linkLabel}</a>
           </div>
         </div>
       </section>

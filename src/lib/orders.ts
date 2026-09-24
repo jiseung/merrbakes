@@ -13,6 +13,8 @@ export type OrderItem = {
   quantity: number;
   digital: boolean;
   hasFile: boolean;
+  // memberships only: how often it bills
+  membership: 'week' | 'month' | null;
 };
 
 export type DigitalFile = { url: string; filename: string };
@@ -55,13 +57,17 @@ export async function getPaidOrder(sessionId: string): Promise<{ email: string |
     const product = li.price?.product;
     const variantId = typeof product === 'object' && product && !product.deleted ? product.metadata?.notion_page_id ?? '' : '';
     const shopItem = variantId ? await shopItemForVariant(variantId) : null;
-    const digital = shopItem?.properties?.Type?.select?.name === 'Digital';
+    const type = shopItem?.properties?.Type?.select?.name;
+    const digital = type === 'Digital';
     return {
       variantId,
       name: li.description ?? 'Item',
       quantity: li.quantity ?? 1,
       digital,
       hasFile: digital && !!digitalFileOf(shopItem),
+      membership: type === 'Recurring'
+        ? (shopItem?.properties?.['Billing Interval']?.select?.name === 'week' ? 'week' : 'month')
+        : null,
     };
   }));
 

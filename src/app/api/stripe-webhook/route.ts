@@ -207,7 +207,7 @@ async function recordSubscriptionInvoice(invoice: Stripe.Invoice) {
     const subscriptionRef = invoice.parent.subscription_details.subscription;
     const subscriptionId = typeof subscriptionRef === 'string' ? subscriptionRef : subscriptionRef.id;
     const shippingText = formatCustomerShipping(invoice.customer_shipping) || await signupShipping(subscriptionId);
-    const label = invoice.billing_reason === 'subscription_create' ? 'first box' : 'weekly';
+    const label = invoice.billing_reason === 'subscription_create' ? 'first box' : 'renewal';
 
     const notionRes = await fetch('https://api.notion.com/v1/pages', {
       method: 'POST',

@@ -5,12 +5,15 @@ import { syncStripePrice } from '@/lib/reconcile';
 import { displayName } from '@/lib/shopItems';
 import { firstRecurringCharge } from '@/lib/billing';
 
-// Weekly membership signup (Tweat of the Week) via Stripe Checkout in
-// subscription mode. The first box is paid at checkout (a one-time line at the
-// level's price); the weekly price then starts at the Friday 6pm charge after
-// that box's cutoff — Stripe models the gap as a trial, which is also what
-// anchors every later charge to Friday 6pm. Members change level through
-// /api/tweat/manage.
+// Membership signup via Stripe Checkout in subscription mode (called from
+// /club's join section). Card payments only (owner: no bank payments).
+// - weekly (Tweat of the Week): the first box is paid at checkout (a one-time
+//   line at the level's price); the weekly price then starts at the Friday 6pm
+//   charge after that box's cutoff — Stripe models the gap as a trial, which is
+//   also what anchors every later charge to Friday 6pm.
+// - monthly (Cookie / Tasting / Confectioner's): charged at signup, then the
+//   same date each month (Stripe's default; matches /club's FAQ and Ko-fi).
+// Members manage/switch through /api/clubs/manage.
 export async function POST(req: NextRequest) {
   try {
     const { variantId, email } = await req.json();
@@ -18,13 +21,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'pick a level' }, { status: 400 });
     }
     const variant = await fetchVariantForCheckout(variantId);
-    if (!variant || variant.billingInterval !== 'week') {
+    if (!variant || !variant.billingInterval) {
       return NextResponse.json({ error: "that level isn't available" }, { status: 404 });
     }
 
-    // make sure Stripe has a weekly recurring Price matching Notion's price
-    const label = `${displayName(variant.shopItemName)} — ${variant.name}`;
-    const synced = await syncStripePrice(variant, label, undefined, 'week');
+    const interval = variant.billingInterval;
+    const weekly = interval === 'week';
+    // make sure Stripe has a recurring Price matching Notion's price + interval
+    // (label mirrors variantDisplayName: single-option clubs are just the club name)
+    const label = variant.name && variant.name !== 'Standard'
+      ? `${displayName(variant.shopItemName)} — ${variant.name}`
+      : displayName(variant.shopItemName);
+    const synced = await syncStripePrice(variant, label, undefined, interval);
     if (synced.action === 'error') {
       console.log('subscribe price sync error:', variant.id, synced.error);
       return NextResponse.json({ error: 'prices are being updated — please try again in a minute' }, { status: 409 });
@@ -38,9 +46,10 @@ export async function POST(req: NextRequest) {
     const origin = new URL(req.url).origin;
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
+      payment_method_types: ['card'],
       line_items: [
         { price, quantity: 1 },
-        {
+        ...(weekly ? [{
           price_data: {
             currency: 'usd',
             unit_amount: recurring.unit_amount ?? 0,
@@ -48,16 +57,16 @@ export async function POST(req: NextRequest) {
             product_data: { name: `${label} — first box`, metadata: { notion_page_id: variant.id } },
           },
           quantity: 1,
-        },
+        }] : []),
       ],
       ...(trimmedEmail ? { customer_email: trimmedEmail } : {}),
       subscription_data: {
-        trial_end: Math.floor(firstRecurringCharge().getTime() / 1000),
+        ...(weekly ? { trial_end: Math.floor(firstRecurringCharge().getTime() / 1000) } : {}),
         metadata: { notion_variant_id: variant.id },
       },
       shipping_address_collection: { allowed_countries: ['US'] },
       success_url: `${origin}/order/{CHECKOUT_SESSION_ID}`,
-      cancel_url: `${origin}/tweat`,
+      cancel_url: `${origin}/club#join`,
     });
     return NextResponse.json({ url: session.url });
   } catch (error) {

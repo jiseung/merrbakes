@@ -54,6 +54,42 @@ export const clubCopy = {
     ],
     featuredBadge: "most loved",
     newBadge: "NEW!",
+    // tier card buttons — "join here" scrolls to the join section below with
+    // that club picked; monthly clubs keep a Ko-fi option for people who prefer it
+    joinHereLabel: (tier: string) => `join ${tier}`,
+    orKofiLabel: "or join on ko-fi →",
+    kofiHref: "https://ko-fi.com/merrbakes",
+  },
+
+  // replaces the old mailing-list box: signup for every club sold on
+  // merrbakes.com (Stripe). Prices/levels come live from Notion.
+  join: {
+    eyebrow: "✿ join on merrbakes.com",
+    heading: "sign up for a club",
+    // the incentive for joining here instead of Ko-fi (owner, 2026-09-24)
+    perk: "🚚 join here and get free shipping on club week drops.",
+    pickClub: "pick your club",
+    pickLevel: "pick your level",
+    // "{n}" = tweats per week from the level's Quantity multiplier in Notion
+    tweatsPerWeek: (n: number) => (n === 1 ? "1 tweat every week" : `${n} tweats every week`),
+    levelNote: "merr picks what goes in your box — different tweats or extra servings.",
+    perWeek: "/ week",
+    perMonth: "/ month",
+    // {price} = chosen option's price, {box} = first box's cutoff, {weekly} = first Friday charge
+    weeklyBilling: (price: string, box: string, weekly: string) =>
+      `you'll pay ${price} today for your first box (finalized ${box}), then every friday at 6pm central starting ${weekly}. change your level any time before friday 6pm and that week's box follows it.`,
+    monthlyBilling: (price: string) => `you'll pay ${price} today, then on the same date each month.`,
+    emailLabel: "your email",
+    emailPlaceholder: "you@email.com",
+    submitLabel: "join the club",
+    submittingLabel: "taking you to checkout…",
+    errorMessage: "something went wrong — try again in a sec?",
+    unavailable: "signups are closed right now — check back soon!",
+    manage: {
+      heading: "already a member?",
+      body: "joined here? change your club or level, update your address or card, or cancel. (joined on ko-fi? manage it on ko-fi.)",
+      linkLabel: "manage my membership →",
+    },
   },
 
   how: {
@@ -83,11 +119,11 @@ export const clubCopy = {
       { q: "how does shipping work?",
         a: "Boxes ship monthly (or weekly) within the US, packed with care. You'll get a tracking number so that you know when it'll arrive." },
       { q: "can i really cancel anytime?",
-        a: "Of course — manage from your Ko-fi account or contact Merr." },
+        a: "Of course — if you joined here, use \"manage my membership\" on this page; if you joined on Ko-fi, manage it from your Ko-fi account. Or just contact Merr." },
       { q: "what if i have allergies?",
         a: "Everything's made in a home kitchen that also handles wheat, dairy, eggs, and nuts. If you'd like to request accommodations, message Merr to talk about options." },
       { q: "when am i billed?",
-        a: "On the day you join, then the same date each month, or the same day of the week each week." },
+        a: "Monthly clubs: on the day you join, then the same date each month. Tweat of the Week: on the day you join (for your first box), then every Friday at 6pm Central." },
       { q: "can i gift a membership?",
         a: "Totally — grab a tier with the recipient's address, or DM Merr and she'll help set it up as a gift." },
       { q: "what is cookie club week, and when is it?",
