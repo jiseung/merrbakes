@@ -83,6 +83,8 @@ export async function fetchVariantForCheckout(variantId: string): Promise<{
   price: string;
   shopItemName: string;
   stripePriceId: string;
+  clubWeekDrop: boolean;
+  billingInterval: 'week' | 'month' | null; // Recurring items only
   shopItemType: string;
   shippingUS: number;
   additionalItemShippingUS: number;
@@ -112,6 +114,10 @@ export async function fetchVariantForCheckout(variantId: string): Promise<{
     price: variantPage.properties?.Price?.rich_text?.map((t: any) => t.plain_text).join('') ?? '',
     shopItemName: shopItemPage.properties?.Name?.title?.map((t: any) => t.plain_text).join('') ?? '',
     stripePriceId,
+    clubWeekDrop: variantPage.properties?.['Club Week Drop']?.checkbox ?? false,
+    billingInterval: shopItemPage.properties?.Type?.select?.name === 'Recurring'
+      ? (shopItemPage.properties?.['Billing Interval']?.select?.name === 'week' ? 'week' : 'month')
+      : null,
     shopItemType: shopItemPage.properties?.Type?.select?.name ?? '',
     shippingUS: parseDollarAmount(shopItemPage.properties?.['Shipping (US)']?.rich_text),
     additionalItemShippingUS: parseDollarAmount(shopItemPage.properties?.['Additional Item Shipping (US)']?.rich_text),

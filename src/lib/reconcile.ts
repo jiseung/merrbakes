@@ -24,6 +24,8 @@ export type ShopItemRow = {
   name: string;
   price: string;
   type: string;
+  // Recurring items only: how often Stripe bills (Notion "Billing Interval")
+  interval: 'week' | 'month' | null;
 };
 
 export type VariantRow = {
@@ -61,6 +63,9 @@ async function fetchShopItems(): Promise<ShopItemRow[]> {
     name: page.properties?.Name?.title?.map((t: any) => t.plain_text).join('') ?? '',
     price: page.properties?.Price?.rich_text?.map((t: any) => t.plain_text).join('') ?? '',
     type: page.properties?.Type?.select?.name ?? '',
+    interval: page.properties?.Type?.select?.name === 'Recurring'
+      ? (page.properties?.['Billing Interval']?.select?.name === 'week' ? 'week' : 'month')
+      : null,
   }));
 }
 
@@ -153,8 +158,11 @@ async function setVariantStripePriceId(variantId: string, stripePriceId: string)
 //
 // `known` is the variant's current Stripe Price if the caller already fetched it
 // (runReconcile lists all Prices up front instead of one retrieve per variant).
+// `interval` makes it a recurring (subscription) Price billed every week/month;
+// a Price whose billing type doesn't match is replaced just like a wrong amount.
 export async function syncStripePrice(
-  variant: Pick<VariantRow, 'id' | 'price' | 'stripePriceId'>, shopItemName: string, known?: Stripe.Price
+  variant: Pick<VariantRow, 'id' | 'price' | 'stripePriceId'>, shopItemName: string, known?: Stripe.Price,
+  interval: 'week' | 'month' | null = null
 ): Promise<
   | { action: 'created'; priceId: string }
   | { action: 'updated'; oldPriceId: string; newPriceId: string; oldCents: number | null; newCents: number }
@@ -176,6 +184,7 @@ export async function syncStripePrice(
         product: product.id,
         unit_amount: targetCents,
         currency: 'usd',
+        ...(interval ? { recurring: { interval } } : {}),
       });
       await stripe.products.update(product.id, { default_price: price.id });
       await setVariantStripePriceId(variant.id, price.id);
@@ -183,7 +192,8 @@ export async function syncStripePrice(
     }
 
     const currentPrice = known ?? await stripe.prices.retrieve(variant.stripePriceId);
-    if (currentPrice.unit_amount === targetCents) {
+    const billingMatches = interval ? currentPrice.recurring?.interval === interval : !currentPrice.recurring;
+    if (currentPrice.unit_amount === targetCents && billingMatches) {
       return { action: 'unchanged' };
     }
 
@@ -192,8 +202,11 @@ export async function syncStripePrice(
       product: productId,
       unit_amount: targetCents,
       currency: currentPrice.currency,
+      ...(interval ? { recurring: { interval } } : {}),
     });
-    await stripe.products.update(productId, { default_price: newPrice.id });
+    // name refresh too — e.g. an item that grew from 1 to several variants
+    // ("Tweat of the Week Club" -> "Tweat of the Week Club — Level 1")
+    await stripe.products.update(productId, { default_price: newPrice.id, name: shopItemName });
     await stripe.prices.update(variant.stripePriceId, { active: false });
     await setVariantStripePriceId(variant.id, newPrice.id);
     return { action: 'updated', oldPriceId: variant.stripePriceId, newPriceId: newPrice.id, oldCents: currentPrice.unit_amount, newCents: targetCents };
@@ -274,7 +287,7 @@ export async function runReconcile(): Promise<ReconcileReport> {
         report.flagged.push(`${label}: Variant Type is "set" but Quantity multiplier is empty`);
       }
 
-      const result = await syncStripePrice(variant, label, stripePrices.get(variant.stripePriceId));
+      const result = await syncStripePrice(variant, label, stripePrices.get(variant.stripePriceId), shopItem.interval);
       if (result.action === 'created') {
         report.stripePricesCreated.push({ variant: label, priceId: result.priceId });
       } else if (result.action === 'updated') {

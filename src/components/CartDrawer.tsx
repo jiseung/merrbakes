@@ -27,6 +27,16 @@ export default function CartDrawer() {
   const [referredBy, setReferredBy] = useState("");
   const [lookup, setLookup] = useState<"idle" | "checking" | "existing" | "new">("idle");
   const [subscribeToList, setSubscribeToList] = useState(true);
+  // club-week drop code — free shipping on variants Merr has marked "Club Week
+  // Drop" in Notion; validated server-side in /api/checkout
+  const [promoCode, setPromoCode] = useState("");
+  // gift: recipient's name + optional message; the address either goes in at
+  // Stripe as usual, or Merr asks the recipient (e.g. a streamer who won't
+  // share their address with a viewer)
+  const [isGift, setIsGift] = useState(false);
+  const [giftRecipient, setGiftRecipient] = useState("");
+  const [giftMessage, setGiftMessage] = useState("");
+  const [giftAddressFromMerr, setGiftAddressFromMerr] = useState(false);
   const [checkingOut, setCheckingOut] = useState(false);
   const [error, setError] = useState("");
 
@@ -44,6 +54,7 @@ export default function CartDrawer() {
 
   async function checkout() {
     if (!email || email.indexOf("@") < 1) { setError("enter your email to continue."); return; }
+    if (isGift && !giftRecipient.trim()) { setError("add who the gift is for."); return; }
 
     // If the lookup hasn't resolved yet, resolve it here. A new customer stops
     // so the referral field can appear before we redirect them away; an
@@ -73,6 +84,8 @@ export default function CartDrawer() {
           items: items.map((i) => ({ variantId: i.variantId, quantity: i.quantity })),
           email,
           referredBy: status === "new" ? referredBy : "",
+          promoCode,
+          gift: isGift ? { recipientName: giftRecipient, message: giftMessage, addressFromMerr: giftAddressFromMerr } : undefined,
         }),
       });
       const data = await res.json();
@@ -87,7 +100,7 @@ export default function CartDrawer() {
           }).catch(() => {});
         }
         window.location.href = data.url;
-      } else { setError("something went wrong starting checkout — try again in a moment."); setCheckingOut(false); }
+      } else { setError(data.error && res.status < 500 ? `${data.error}.` : "something went wrong starting checkout — try again in a moment."); setCheckingOut(false); }
     } catch {
       setError("something went wrong starting checkout — try again in a moment.");
       setCheckingOut(false);
@@ -161,6 +174,42 @@ export default function CartDrawer() {
                   <input type="text" value={referredBy} placeholder="their name"
                          onChange={(e) => setReferredBy(e.target.value)}
                          className={inputClass} />
+                </div>
+              )}
+              <div>
+                <label className={`${prose} text-sm font-bold text-merrbakes-brown/70`}>club week code (optional)</label>
+                <input type="text" value={promoCode} autoCapitalize="none" autoCorrect="off"
+                       onChange={(e) => setPromoCode(e.target.value)}
+                       className={inputClass} />
+              </div>
+              <label className={`${prose} flex items-center gap-2 text-base font-bold text-merrbakes-brown/80`}>
+                <input type="checkbox" checked={isGift} onChange={(e) => setIsGift(e.target.checked)} />
+                🎁 this is a gift
+              </label>
+              {isGift && (
+                <div className="flex flex-col gap-3 rounded-2xl bg-white/60 p-4">
+                  <div>
+                    <label className={`${prose} text-sm font-bold text-merrbakes-brown/70`}>who's it for?</label>
+                    <input type="text" value={giftRecipient} maxLength={100} placeholder="their name or username"
+                           onChange={(e) => setGiftRecipient(e.target.value)}
+                           className={inputClass} />
+                  </div>
+                  <fieldset className={`${prose} flex flex-col gap-1.5 text-sm text-merrbakes-brown/80`}>
+                    <label className="flex items-start gap-2">
+                      <input type="radio" name="gift-address" className="mt-1" checked={!giftAddressFromMerr} onChange={() => setGiftAddressFromMerr(false)} />
+                      i&apos;ll enter their shipping address at checkout
+                    </label>
+                    <label className="flex items-start gap-2">
+                      <input type="radio" name="gift-address" className="mt-1" checked={giftAddressFromMerr} onChange={() => setGiftAddressFromMerr(true)} />
+                      i don&apos;t have their address — merr will reach out to them for it
+                    </label>
+                  </fieldset>
+                  <div>
+                    <label className={`${prose} text-sm font-bold text-merrbakes-brown/70`}>gift message (optional)</label>
+                    <textarea value={giftMessage} maxLength={450} rows={3}
+                              onChange={(e) => setGiftMessage(e.target.value)}
+                              className={`${inputClass} rounded-2xl resize-none`} />
+                  </div>
                 </div>
               )}
               <button type="button" onClick={() => setStep("cart")} className={`${prose} text-sm text-merrbakes-brown/60 underline self-start`}>← back to cart</button>

@@ -3,10 +3,16 @@ import { stripe } from '@/lib/stripe';
 import { fetchVariantForCheckout, notionHeaders } from '@/lib/notion';
 import { syncStripePrice } from '@/lib/reconcile';
 import { displayName } from '@/lib/shopItems';
+import { isClubWeekCode } from '@/lib/promo';
 
 const ORDERS_DB_ID = process.env.NOTION_ORDERS_DB_ID;
 
 type CartLine = { variantId: string; quantity?: number };
+// gift orders: either the buyer enters the recipient's address on Stripe's page
+// as usual, or (addressFromMerr) just the recipient's name — e.g. a streamer who
+// won't share their address with a viewer — and Merr gets the address herself.
+type GiftInput = { recipientName?: string; message?: string; addressFromMerr?: boolean };
+const GIFT_MESSAGE_MAX = 450; // Stripe metadata values cap at 500 chars
 
 // Re-checks eligibility server-side rather than trusting the client's own
 // /api/customer-lookup result — that call only gates whether the cart UI
@@ -64,10 +70,24 @@ function computeShippingCents(
 
 export async function POST(req: NextRequest) {
   try {
-    const { items, email, referredBy } = await req.json();
+    const { items, email, referredBy, promoCode, gift } = await req.json();
     if (!Array.isArray(items) || items.length === 0) {
       return NextResponse.json({ error: 'missing items' }, { status: 400 });
     }
+
+    const hasCode = typeof promoCode === 'string' && promoCode.trim() !== '';
+    if (hasCode && !isClubWeekCode(promoCode)) {
+      return NextResponse.json({ error: "that code isn't valid" }, { status: 400 });
+    }
+    const clubWeekCode = hasCode;
+
+    const giftInput: GiftInput | null = gift && typeof gift === 'object' ? gift : null;
+    const giftRecipient = typeof giftInput?.recipientName === 'string' ? giftInput.recipientName.trim().slice(0, 100) : '';
+    const giftMessage = typeof giftInput?.message === 'string' ? giftInput.message.trim().slice(0, GIFT_MESSAGE_MAX) : '';
+    if (giftInput && !giftRecipient) {
+      return NextResponse.json({ error: "add the gift recipient's name" }, { status: 400 });
+    }
+    const giftAddressFromMerr = !!giftInput && giftInput.addressFromMerr === true;
 
     const trimmedEmail = typeof email === 'string' ? email.trim() : '';
     const trimmedReferral = typeof referredBy === 'string' ? referredBy.trim() : '';
@@ -82,6 +102,11 @@ export async function POST(req: NextRequest) {
       const variant = await fetchVariantForCheckout(line.variantId);
       if (!variant) {
         return NextResponse.json({ error: 'one of the items in your cart is no longer available' }, { status: 404 });
+      }
+      // memberships are subscriptions with their own signup (/api/subscribe) —
+      // a one-time cart charge would bill them once and never again
+      if (variant.shopItemType === 'Recurring') {
+        return NextResponse.json({ error: 'memberships sign up on their own page, not through the cart' }, { status: 400 });
       }
       // Safety net for Notion edits the sync hasn't picked up yet: make sure the
       // Stripe Price matches Notion's current price (creating/replacing it if not)
@@ -104,10 +129,23 @@ export async function POST(req: NextRequest) {
       shippingInputs.push({ ...variant, quantity });
     }
 
-    const shippingCents = computeShippingCents(shippingInputs);
+    // with the club-week code, drop items ship free — they're left out of the
+    // shipping math entirely, everything else in the cart pays as usual
+    const dropApplied = clubWeekCode && shippingInputs.some((l) => l.clubWeekDrop);
+    const shippingCents = computeShippingCents(clubWeekCode ? shippingInputs.filter((l) => !l.clubWeekDrop) : shippingInputs);
+    const shippingLabel = dropApplied ? 'Shipping (club week drop ships free)' : 'Shipping';
     // digital-only carts (recipe cards) have nothing to ship — skip the address
     // form and the $0 shipping line entirely.
     const needsShipping = shippingInputs.some((l) => l.shopItemType !== 'Digital');
+    // name-only gifts: no address form (Merr asks the recipient), so shipping is
+    // charged as a plain line item instead of a shipping option
+    const collectAddress = needsShipping && !giftAddressFromMerr;
+    if (needsShipping && giftAddressFromMerr && shippingCents > 0) {
+      lineItems.push({
+        price_data: { currency: 'usd', unit_amount: shippingCents, product_data: { name: shippingLabel } },
+        quantity: 1,
+      });
+    }
 
     const origin = new URL(req.url).origin;
     const session = await stripe.checkout.sessions.create({
@@ -125,17 +163,25 @@ export async function POST(req: NextRequest) {
       // read back in /api/stripe-webhook to fill in the Orders row's "Referred
       // By" field — only set at all if the server-side eligibility check above
       // agreed the buyer is new, regardless of what the client sent.
-      metadata: { referred_by: referralEligible ? trimmedReferral : '' },
+      metadata: {
+        referred_by: referralEligible ? trimmedReferral : '',
+        // read back in /api/stripe-webhook into the Orders row's Gift fields
+        gift: giftInput ? 'yes' : '',
+        gift_recipient: giftRecipient,
+        gift_message: giftMessage,
+        gift_address_from_merr: giftAddressFromMerr ? 'yes' : '',
+        club_week_code: dropApplied ? 'yes' : '',
+      },
       // these are baked-to-order and shipped — collect an address so a completed
       // order actually has somewhere to go (see /api/stripe-webhook).
-      ...(needsShipping ? {
+      ...(collectAddress ? {
         shipping_address_collection: { allowed_countries: ['US'] as const },
         shipping_options: [
           {
             shipping_rate_data: {
               type: 'fixed_amount' as const,
               fixed_amount: { amount: shippingCents, currency: 'usd' },
-              display_name: 'Shipping',
+              display_name: shippingLabel,
             },
           },
         ],

@@ -49,9 +49,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'invalid signature' }, { status: 400 });
   }
 
-  // only preorder payments feed the packing list right now — subscription
-  // lifecycle events (customer.subscription.*, invoice.paid) will need their
-  // own handling once the weekly-subscription product exists.
+  // weekly membership charges (Tweat of the Week) — one Orders row per paid box
+  if (event.type === 'invoice.paid') {
+    return recordSubscriptionInvoice(event.data.object as Stripe.Invoice);
+  }
   if (event.type !== 'checkout.session.completed') {
     return NextResponse.json({ ignored: true, type: event.type });
   }
@@ -67,6 +68,28 @@ export async function POST(req: NextRequest) {
       expand: ['data.price.product'],
     });
 
+    // membership signup: nothing is charged or shipped yet (the first charge is
+    // the next Friday 6pm billing, recorded via invoice.paid), so record the
+    // signup without Items/line items — otherwise it'd count as a box to pack.
+    const isSignup = session.mode === 'subscription';
+    if (isSignup && session.customer) {
+      // save the collected address on the customer so every weekly invoice
+      // carries it (invoice.customer_shipping)
+      const shipping = session.collected_information?.shipping_details;
+      if (shipping?.address) {
+        const a = shipping.address;
+        await stripe.customers.update(typeof session.customer === 'string' ? session.customer : session.customer.id, {
+          shipping: {
+            name: shipping.name,
+            address: {
+              line1: a.line1 ?? undefined, line2: a.line2 ?? undefined, city: a.city ?? undefined,
+              state: a.state ?? undefined, postal_code: a.postal_code ?? undefined, country: a.country ?? undefined,
+            },
+          },
+        });
+      }
+    }
+
     // each Stripe Product was created with metadata.notion_page_id pointing back
     // at its Shop Item Variants row (see merrbakes.md, "rebuilt at the variant
     // level") — reading it back here avoids a second name-matching lookup.
@@ -75,12 +98,19 @@ export async function POST(req: NextRequest) {
     const summaryLines = lineItems.data.map((li) => {
       const product = li.price?.product;
       const notionPageId = typeof product === 'object' && product && !product.deleted ? product.metadata?.notion_page_id : undefined;
-      if (notionPageId) {
+      if (notionPageId && !isSignup) {
         relationIds.add(notionPageId);
         lineItemsToRecord.push({ title: li.description ?? 'Item', variantId: notionPageId, quantity: li.quantity ?? 1 });
       }
       return `${li.quantity}x ${li.description}`;
     });
+    if (isSignup) summaryLines.push('(new membership signup — first charge next Friday 6pm CT)');
+
+    const isGift = session.metadata?.gift === 'yes';
+    const giftAddressFromMerr = session.metadata?.gift_address_from_merr === 'yes';
+    const shippingText = isGift && giftAddressFromMerr
+      ? `(gift for ${session.metadata?.gift_recipient ?? 'recipient'} — Merr to get the address from the recipient)`
+      : formatShipping(session);
 
     const notionRes = await fetch('https://api.notion.com/v1/pages', {
       method: 'POST',
@@ -94,7 +124,10 @@ export async function POST(req: NextRequest) {
           'Buyer Email': { rich_text: [{ text: { content: session.customer_details?.email ?? '' } }] },
           'Items Summary': { rich_text: [{ text: { content: summaryLines.join(', ') || '(no items listed)' } }] },
           Items: { relation: Array.from(relationIds).map((id) => ({ id })) },
-          'Shipping Address': { rich_text: [{ text: { content: formatShipping(session) } }] },
+          'Shipping Address': { rich_text: [{ text: { content: shippingText } }] },
+          Gift: { checkbox: isGift },
+          'Gift Recipient': { rich_text: [{ text: { content: session.metadata?.gift_recipient ?? '' } }] },
+          'Gift Message': { rich_text: [{ text: { content: session.metadata?.gift_message ?? '' } }] },
           Amount: { number: (session.amount_total ?? 0) / 100 },
           'Ordered on': { date: { start: new Date().toISOString() } },
           'Transaction or Session ID': { rich_text: [{ text: { content: session.id } }] },
@@ -116,6 +149,77 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     const err = error as Error;
     console.log('stripe-webhook error:', err.stack);
+    return NextResponse.json({ error: 'internal error' }, { status: 500 });
+  }
+}
+
+function formatCustomerShipping(shipping: Stripe.Invoice.CustomerShipping | null): string {
+  const addr = shipping?.address;
+  if (!addr) return '';
+  return [
+    shipping?.name,
+    addr.line1,
+    addr.line2,
+    `${addr.city ?? ''}, ${addr.state ?? ''} ${addr.postal_code ?? ''}`.trim(),
+    addr.country,
+  ].filter(Boolean).join('\n');
+}
+
+// One Orders row (+ line items, so the packing-list rollups count it) per paid
+// membership charge. The $0 invoice Stripe creates at signup (billing is
+// anchored to the next Friday 6pm) is skipped — the signup row covers that.
+async function recordSubscriptionInvoice(invoice: Stripe.Invoice) {
+  if (!invoice.parent?.subscription_details || invoice.amount_paid <= 0 || !invoice.id) {
+    return NextResponse.json({ ignored: true, reason: 'not a paid membership charge' });
+  }
+  try {
+    if (await orderAlreadyRecorded(invoice.id)) {
+      return NextResponse.json({ ok: true, duplicate: true });
+    }
+    const lines = await stripe.invoices.listLineItems(invoice.id, { limit: 100 });
+    const relationIds = new Set<string>();
+    const lineItemsToRecord: { title: string; variantId: string; quantity: number }[] = [];
+    const summaryLines: string[] = [];
+    for (const line of lines.data) {
+      const productId = line.pricing?.price_details?.product;
+      const product = productId ? await stripe.products.retrieve(productId) : null;
+      const variantId = product?.metadata?.notion_page_id;
+      const title = product?.name ?? line.description ?? 'Membership';
+      if (variantId) {
+        relationIds.add(variantId);
+        lineItemsToRecord.push({ title, variantId, quantity: line.quantity ?? 1 });
+      }
+      summaryLines.push(`${line.quantity ?? 1}x ${title}`);
+    }
+
+    const notionRes = await fetch('https://api.notion.com/v1/pages', {
+      method: 'POST',
+      headers: notionHeaders(),
+      body: JSON.stringify({
+        parent: { database_id: ORDERS_DB_ID },
+        properties: {
+          Name: { title: [{ text: { content: `${invoice.customer_name ?? 'Member'} — weekly — ${invoice.id.slice(-8)}` } }] },
+          Source: { select: { name: 'merrbakes.com' } },
+          'Buyer Name': { rich_text: [{ text: { content: invoice.customer_name ?? '' } }] },
+          'Buyer Email': { rich_text: [{ text: { content: invoice.customer_email ?? '' } }] },
+          'Items Summary': { rich_text: [{ text: { content: summaryLines.join(', ') || '(membership)' } }] },
+          Items: { relation: Array.from(relationIds).map((id) => ({ id })) },
+          'Shipping Address': { rich_text: [{ text: { content: formatCustomerShipping(invoice.customer_shipping) } }] },
+          Amount: { number: invoice.amount_paid / 100 },
+          'Ordered on': { date: { start: new Date().toISOString() } },
+          'Transaction or Session ID': { rich_text: [{ text: { content: invoice.id } }] },
+        },
+      }),
+    });
+    if (!notionRes.ok) {
+      console.log('stripe-webhook: Notion page create failed (invoice)', notionRes.status, await notionRes.text());
+      return NextResponse.json({ error: 'notion create failed' }, { status: 500 });
+    }
+    const orderPage = await notionRes.json();
+    await createOrderLineItems(ORDER_LINE_ITEMS_DB_ID, orderPage.id, lineItemsToRecord);
+    return NextResponse.json({ ok: true, invoice: invoice.id });
+  } catch (error) {
+    console.log('stripe-webhook invoice error:', (error as Error).stack);
     return NextResponse.json({ error: 'internal error' }, { status: 500 });
   }
 }
