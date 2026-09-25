@@ -8,9 +8,11 @@ import { chicagoDate } from '@/lib/billing';
 //   the default, the week starting on the month's 3rd Monday. A Monday Merr set
 //   is applied ahead of time; a default only at the Friday 6pm charge, so she
 //   can still set a different Monday until then (owner, 2026-09-25).
-// - "Break": a date range (on the row of the month it starts in) when Merr's
-//   taking time off — NO recurring charge dated inside it happens, weekly or
-//   monthly; memberships stay active and pick back up after (owner, 2026-09-25).
+// - "Break" (and "Break 2", "Break 3", … — every date field whose name contains
+//   "break", any case): date ranges (on the row of the month each starts in)
+//   when Merr's taking time off — NO recurring charge dated inside one happens,
+//   weekly or monthly; memberships stay active and pick back up after (owner,
+//   2026-09-25).
 // Days are Chicago calendar dates, "YYYY-MM-DD".
 
 type Ymd = { y: number; m: number; d: number };
@@ -52,8 +54,10 @@ async function calendarRows(): Promise<Rows> {
     const month = (row.properties?.Date?.title ?? []).map((t: any) => t.plain_text).join('').trim();
     const monday = row.properties?.['Cookie Club Monday']?.date?.start;
     if (/^\d{4}-\d{2}$/.test(month) && monday) cookieMondays.set(month, monday.slice(0, 10));
-    const brk = row.properties?.Break?.date;
-    if (brk?.start) breaks.push({ start: brk.start.slice(0, 10), end: (brk.end ?? brk.start).slice(0, 10) });
+    for (const [name, prop] of Object.entries<any>(row.properties ?? {})) {
+      if (prop?.type !== 'date' || !/break/i.test(name) || !prop.date?.start) continue;
+      breaks.push({ start: prop.date.start.slice(0, 10), end: (prop.date.end ?? prop.date.start).slice(0, 10) });
+    }
   }
   return { cookieMondays, breaks };
 }
