@@ -126,8 +126,8 @@ export default function AdminSyncPage() {
         {report && (
           <div className="mt-8 flex flex-col gap-4">
             {nothingChanged && <div className="rounded-2xl border-2 border-merrbakes-brown/15 bg-white p-5 text-xl font-bold">✓ everything was already in sync</div>}
-            <Section title="Prices changed" items={report.stripePricesUpdated.map((u) => `${u.variant}: ${dollars(u.oldCents)} → ${dollars(u.newCents)}`)} />
-            <Section title="New items added to checkout" items={report.stripePricesCreated.map((c) => c.variant)} />
+            <Section title="Prices changed" items={report.stripePricesUpdated.map((u) => `${u.variant}: ${dollars(u.oldCents)} → ${dollars(u.newCents)}${u.reason && u.reason !== "amount differs from Notion" ? ` (${u.reason})` : ""}`)} />
+            <Section title="New items added to checkout" items={report.stripePricesCreated.map((c) => `${c.variant}${c.reason ? ` (${c.reason})` : ""}`)} />
             <Section title="Missing option rows created" items={report.variantsCreated} />
             <Section title="Fulfillment rows created" items={report.fulfillmentRowsCreated} />
             <Section title="Default option set" items={report.defaultsFixed} />

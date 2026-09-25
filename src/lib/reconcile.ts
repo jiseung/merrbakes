@@ -14,8 +14,8 @@ export type ReconcileReport = {
   fulfillmentRowsCreated: string[];
   variantsCreated: string[];
   defaultsFixed: string[];
-  stripePricesCreated: { variant: string; priceId: string }[];
-  stripePricesUpdated: { variant: string; oldPriceId: string; newPriceId: string; oldCents: number | null; newCents: number }[];
+  stripePricesCreated: { variant: string; priceId: string; reason: string }[];
+  stripePricesUpdated: { variant: string; oldPriceId: string; newPriceId: string; oldCents: number | null; newCents: number; reason: string }[];
   flagged: string[];
   errors: string[];
   // membership charges paused/unpaused for cookie club week or a break (src/lib/chargeSkips.ts)
@@ -154,21 +154,29 @@ async function setVariantStripePriceId(variantId: string, stripePriceId: string)
   });
 }
 
-// Stripe Prices are immutable, so "changing the price" means: create a new Price
-// on the same Product, point the Product's default_price at it, deactivate the
-// old Price so it can't be reused for new checkouts, and write the new Price ID
-// back to Notion. Existing completed orders/subscriptions are unaffected either way.
+// Makes the variant's Stripe Price match Notion. The stored "Stripe Price ID" is
+// checked against Notion every time (owner, 2026-09-25); it's replaced when:
+// - it doesn't exist in this Stripe mode — e.g. switching to a live key, when
+//   Notion still holds test-mode ids — or there isn't one yet
+// - it's inactive, not USD, the wrong amount, or the wrong billing (one-time vs
+//   recurring, week vs month) for Notion's Price / Type / Billing Interval
+// - its Product is missing/archived or belongs to a different variant
+//   (metadata.notion_page_id), e.g. an id copied from another row
+// Stripe Prices are immutable, so replacing means: a new Price (on the same
+// Product if that Product is fine, else on a new one), set as the Product's
+// default, the old Price deactivated if it was this variant's own, and the new
+// id written back to Notion. Completed orders/subscriptions are unaffected. The
+// Product name is kept in step with the variant's label.
 //
-// `known` is the variant's current Stripe Price if the caller already fetched it
-// (runReconcile lists all Prices up front instead of one retrieve per variant).
-// `interval` makes it a recurring (subscription) Price billed every week/month;
-// a Price whose billing type doesn't match is replaced just like a wrong amount.
+// `known` is the variant's current Stripe Price, with its product expanded, if
+// the caller already fetched it (runReconcile lists all Prices up front).
+// `interval` makes it a recurring (subscription) Price billed every week/month.
 export async function syncStripePrice(
   variant: Pick<VariantRow, 'id' | 'price' | 'stripePriceId'>, shopItemName: string, known?: Stripe.Price,
   interval: 'week' | 'month' | null = null
 ): Promise<
-  | { action: 'created'; priceId: string }
-  | { action: 'updated'; oldPriceId: string; newPriceId: string; oldCents: number | null; newCents: number }
+  | { action: 'created'; priceId: string; reason: string }
+  | { action: 'updated'; oldPriceId: string; newPriceId: string; oldCents: number | null; newCents: number; reason: string }
   | { action: 'unchanged' }
   | { action: 'error'; error: string }
 > {
@@ -178,44 +186,66 @@ export async function syncStripePrice(
   }
 
   try {
-    if (!variant.stripePriceId) {
-      const product = await stripe.products.create({
-        name: shopItemName,
-        metadata: { notion_page_id: variant.id },
-      });
-      const price = await stripe.prices.create({
-        product: product.id,
-        unit_amount: targetCents,
-        currency: 'usd',
-        ...(interval ? { recurring: { interval } } : {}),
-      });
-      await stripe.products.update(product.id, { default_price: price.id });
-      await setVariantStripePriceId(variant.id, price.id);
-      return { action: 'created', priceId: price.id };
+    const current = variant.stripePriceId ? known ?? await retrievePrice(variant.stripePriceId) : null;
+    const product = current ? await productOf(current) : null;
+    const productOk = !!product && product.active && product.metadata?.notion_page_id === variant.id;
+
+    const problems: string[] = [];
+    if (!variant.stripePriceId) problems.push('no Stripe price yet');
+    else if (!current) problems.push('stored price not found in this Stripe mode');
+    else {
+      if (!current.active) problems.push('price inactive');
+      if (current.currency !== 'usd') problems.push(`currency ${current.currency}`);
+      if (current.unit_amount !== targetCents) problems.push('amount differs from Notion');
+      if ((current.recurring?.interval ?? null) !== interval) problems.push('billing differs from Notion');
+      if (!product) problems.push('product missing');
+      else if (!product.active) problems.push('product archived');
+      else if (product.metadata?.notion_page_id !== variant.id) problems.push('product belongs to another variant');
     }
 
-    const currentPrice = known ?? await stripe.prices.retrieve(variant.stripePriceId);
-    const billingMatches = interval ? currentPrice.recurring?.interval === interval : !currentPrice.recurring;
-    if (currentPrice.unit_amount === targetCents && billingMatches) {
+    if (problems.length === 0) {
+      if (product!.name !== shopItemName) await stripe.products.update(product!.id, { name: shopItemName });
       return { action: 'unchanged' };
     }
 
-    const productId = typeof currentPrice.product === 'string' ? currentPrice.product : currentPrice.product.id;
+    const productId = productOk
+      ? product!.id
+      : (await stripe.products.create({ name: shopItemName, metadata: { notion_page_id: variant.id } })).id;
     const newPrice = await stripe.prices.create({
       product: productId,
       unit_amount: targetCents,
-      currency: currentPrice.currency,
+      currency: 'usd',
       ...(interval ? { recurring: { interval } } : {}),
     });
-    // name refresh too — e.g. an item that grew from 1 to several variants
-    // ("Tweat of the Week Club" -> "Tweat of the Week Club — Level 1")
     await stripe.products.update(productId, { default_price: newPrice.id, name: shopItemName });
-    await stripe.prices.update(variant.stripePriceId, { active: false });
+    // only retire the old Price if it was this variant's own — a Price on
+    // another variant's Product is still that variant's live price
+    if (current?.active && productOk) await stripe.prices.update(current.id, { active: false });
     await setVariantStripePriceId(variant.id, newPrice.id);
-    return { action: 'updated', oldPriceId: variant.stripePriceId, newPriceId: newPrice.id, oldCents: currentPrice.unit_amount, newCents: targetCents };
+
+    const reason = problems.join('; ');
+    return current
+      ? { action: 'updated', oldPriceId: current.id, newPriceId: newPrice.id, oldCents: current.unit_amount, newCents: targetCents, reason }
+      : { action: 'created', priceId: newPrice.id, reason };
   } catch (error) {
     return { action: 'error', error: (error as Error).message };
   }
+}
+
+// null when the id doesn't exist in this Stripe mode/account (resource_missing)
+async function retrievePrice(id: string): Promise<Stripe.Price | null> {
+  try {
+    return await stripe.prices.retrieve(id, { expand: ['product'] });
+  } catch (error) {
+    if ((error as { code?: string }).code === 'resource_missing') return null;
+    throw error;
+  }
+}
+
+async function productOf(price: Stripe.Price): Promise<Stripe.Product | null> {
+  const ref = price.product;
+  const product = typeof ref === 'string' ? await stripe.products.retrieve(ref) : ref;
+  return product.deleted ? null : (product as Stripe.Product);
 }
 
 // every Price on the account (active or not), keyed by id — a few paginated
@@ -223,7 +253,7 @@ export async function syncStripePrice(
 // inside a proxy's request timeout.
 async function fetchAllStripePrices(): Promise<Map<string, Stripe.Price>> {
   const prices = new Map<string, Stripe.Price>();
-  for await (const price of stripe.prices.list({ limit: 100 })) {
+  for await (const price of stripe.prices.list({ limit: 100, expand: ['data.product'] })) {
     prices.set(price.id, price);
   }
   return prices;
@@ -293,11 +323,11 @@ export async function runReconcile(): Promise<ReconcileReport> {
 
       const result = await syncStripePrice(variant, label, stripePrices.get(variant.stripePriceId), shopItem.interval);
       if (result.action === 'created') {
-        report.stripePricesCreated.push({ variant: label, priceId: result.priceId });
+        report.stripePricesCreated.push({ variant: label, priceId: result.priceId, reason: result.reason });
       } else if (result.action === 'updated') {
         report.stripePricesUpdated.push({
           variant: label, oldPriceId: result.oldPriceId, newPriceId: result.newPriceId,
-          oldCents: result.oldCents, newCents: result.newCents,
+          oldCents: result.oldCents, newCents: result.newCents, reason: result.reason,
         });
       } else if (result.action === 'error') {
         report.errors.push(`${label}: ${result.error}`);
