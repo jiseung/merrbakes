@@ -7,6 +7,7 @@ import { plannedFirstCharge, WEEKLY_SIGNUP } from '@/lib/weeklySignup';
 import { clubCopy } from '@/content/club';
 import { parseTip, tipLineItem } from '@/lib/tips';
 import { cleanStreamName } from '@/lib/streamAlert';
+import { siteOrigin } from '@/lib/siteOrigin';
 
 // Membership signup via Stripe Checkout (called from /club's join section).
 // Card payments only (owner: no bank payments).
@@ -48,7 +49,7 @@ export async function POST(req: NextRequest) {
       : variant.stripePriceId;
 
     const trimmedEmail = typeof email === 'string' ? email.trim() : '';
-    const origin = new URL(req.url).origin;
+    const origin = siteOrigin(req);
     // on-stream alert name, read back in /api/stripe-webhook (see lib/streamAlert)
     const metadata = {
       stream_name: cleanStreamName(streamName),

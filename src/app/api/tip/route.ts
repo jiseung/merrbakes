@@ -2,13 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe';
 import { standaloneTipPrice } from '@/lib/tips';
 import { tipsCopy } from '@/content/tips';
+import { siteOrigin } from '@/lib/siteOrigin';
 
 // Standalone "tip merr" (footer link): straight to a Stripe checkout holding
 // only the tip — the buyer types the amount and can leave a note (visible in
 // Stripe). Not recorded in Notion; /api/stripe-webhook only sends the stream alert.
 export async function GET(req: NextRequest) {
   try {
-    const origin = new URL(req.url).origin;
+    const origin = siteOrigin(req);
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
       payment_method_types: ['card'],

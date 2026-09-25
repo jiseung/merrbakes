@@ -7,6 +7,7 @@ import { isClubWeekCode } from '@/lib/promo';
 import { parseTip, tipLineItem } from '@/lib/tips';
 import { cleanStreamName } from '@/lib/streamAlert';
 import { cartCopy } from '@/content/cart';
+import { siteOrigin } from '@/lib/siteOrigin';
 
 const ORDERS_DB_ID = process.env.NOTION_ORDERS_DB_ID;
 
@@ -169,7 +170,7 @@ export async function POST(req: NextRequest) {
       : collectAddress ? { custom_text: { shipping_address: { message: giftNote(cartCopy.gift.stripeAddressNote) } } }
       : { custom_text: { submit: { message: giftNote(needsShipping ? cartCopy.gift.stripeMerrAsksNote : cartCopy.gift.stripeDescription) } } };
 
-    const origin = new URL(req.url).origin;
+    const origin = siteOrigin(req);
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
       // cards only (incl. Apple/Google Pay) — no bank payments (owner, 2026-09-24):
