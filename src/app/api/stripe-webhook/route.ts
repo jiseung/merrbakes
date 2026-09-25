@@ -31,6 +31,14 @@ function sessionStreamName(session: Stripe.Checkout.Session): string {
   });
 }
 
+// a tip added to a cart order or club signup gets its own "donation" alert,
+// sent after the order/signup alert (owner, 2026-09-25) — set by /api/checkout
+// and /api/subscribe (lib/tips)
+async function sendTipAlert(session: Stripe.Checkout.Session): Promise<void> {
+  if (!(Number(session.metadata?.tip_cents) > 0)) return;
+  await sendStreamAlert({ source: 'merrbakes.com', kind: 'donation', name: sessionStreamName(session), summary: '' });
+}
+
 function customField(session: Stripe.Checkout.Session, key: string): string {
   return session.custom_fields?.find((f) => f.key === key)?.text?.value ?? '';
 }
@@ -134,6 +142,7 @@ export async function POST(req: NextRequest) {
         name: sessionStreamName(session),
         summary: lineItems.data[0]?.description ?? '',
       });
+      await sendTipAlert(session);
       return NextResponse.json({ ok: true, subscriptionSignup: true });
     }
 
@@ -205,6 +214,7 @@ export async function POST(req: NextRequest) {
       // name-only gifts add as a line item isn't an item
       summary: alertSummary(orderLines.map((li) => li.description ?? '').filter((d) => !d.startsWith('Shipping'))),
     });
+    await sendTipAlert(session);
 
     return NextResponse.json({ ok: true, unmatchedItems: orderLines.length - relationIds.size });
   } catch (error) {
