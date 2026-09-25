@@ -167,6 +167,10 @@ export async function POST(req: NextRequest) {
       // cards only (incl. Apple/Google Pay) — no bank payments (owner, 2026-09-24):
       // those settle days later, after the order is already recorded
       payment_method_types: ['card'],
+      // card-only isn't enough on its own: Stripe's Link wallet brings its own
+      // bank option, so hide Link too — no bank payments for orders/memberships
+      // (owner, 2026-09-24; tips at /api/tip keep Link/bank)
+      wallet_options: { link: { display: 'never' } },
       line_items: lineItems,
       // one-time payments default to customer_creation: 'if_required', which
       // often skips creating a retained Customer record — without this, most

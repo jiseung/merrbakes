@@ -52,6 +52,10 @@ export async function POST(req: NextRequest) {
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       payment_method_types: ['card'],
+      // card-only isn't enough on its own: Stripe's Link wallet brings its own
+      // bank option, so hide Link too — no bank payments for orders/memberships
+      // (owner, 2026-09-24; tips at /api/tip keep Link/bank)
+      wallet_options: { link: { display: 'never' } },
       line_items: [
         { price, quantity: 1 },
         ...(weekly ? [{
