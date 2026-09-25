@@ -4,6 +4,7 @@ import { stripe } from '@/lib/stripe';
 import { notionHeaders, createOrderLineItems } from '@/lib/notion';
 import { alertSummary, sendStreamAlert, streamName, cleanStreamName } from '@/lib/streamAlert';
 import { voidIfSkippedCharge } from '@/lib/chargeSkips';
+import { isWeeklySignup, startWeeklySubscription } from '@/lib/weeklySignup';
 
 const ORDERS_DB_ID = process.env.NOTION_ORDERS_DB_ID;
 const ORDER_LINE_ITEMS_DB_ID = process.env.NOTION_ORDER_LINE_ITEMS_DB_ID;
@@ -24,12 +25,8 @@ async function orderAlreadyRecorded(sessionId: string): Promise<boolean> {
 // name for the on-stream alert, from the checkout's shout-out fields (set by
 // /api/checkout and /api/subscribe)
 function sessionStreamName(session: Stripe.Checkout.Session): string {
-  return streamName({
-    anonymous: session.metadata?.stream_anonymous === 'yes',
-    // the standalone tip page asks via a Stripe custom field instead of our form
-    chosenName: session.metadata?.stream_name || cleanStreamName(customField(session, 'stream_name')),
-    fullName: session.customer_details?.name,
-  });
+  // the standalone tip page asks via a Stripe custom field instead of our form
+  return streamName(session.metadata?.stream_name || cleanStreamName(customField(session, 'stream_name')));
 }
 
 // a tip added to a cart order or club signup gets its own "donation" alert,
@@ -44,6 +41,23 @@ function customField(session: Stripe.Checkout.Session, key: string): string {
   return session.custom_fields?.find((f) => f.key === key)?.text?.value ?? '';
 }
 
+
+// save a membership signup's collected address on the customer, so every
+// renewal invoice carries it (invoice.customer_shipping)
+async function saveShippingOnCustomer(session: Stripe.Checkout.Session): Promise<void> {
+  const shipping = session.collected_information?.shipping_details;
+  if (!session.customer || !shipping?.address) return;
+  const a = shipping.address;
+  await stripe.customers.update(typeof session.customer === 'string' ? session.customer : session.customer.id, {
+    shipping: {
+      name: shipping.name,
+      address: {
+        line1: a.line1 ?? undefined, line2: a.line2 ?? undefined, city: a.city ?? undefined,
+        state: a.state ?? undefined, postal_code: a.postal_code ?? undefined, country: a.country ?? undefined,
+      },
+    },
+  });
+}
 
 function formatShipping(session: Stripe.Checkout.Session): string {
   const shipping = session.collected_information?.shipping_details;
@@ -118,6 +132,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, tip: true });
     }
 
+    // weekly membership signup (lib/weeklySignup): this payment was the first
+    // box — start the weekly subscription on the saved card before anything
+    // else, then record the box below like any order. Safe on a retry.
+    const weeklySignup = isWeeklySignup(session);
+    if (weeklySignup) {
+      await startWeeklySubscription(session);
+      await saveShippingOnCustomer(session);
+    }
+
     if (await orderAlreadyRecorded(session.id)) {
       return NextResponse.json({ ok: true, duplicate: true });
     }
@@ -126,29 +149,12 @@ export async function POST(req: NextRequest) {
       expand: ['data.price.product'],
     });
 
-    // membership signup: the first box is paid on the subscription's first
-    // invoice, which invoice.paid records like every weekly charge — so no Orders
-    // row here (it'd double-count), just save the address on the customer so
-    // every future invoice carries it.
+    // monthly membership signup: the first month is paid on the subscription's
+    // first invoice, which invoice.paid records like every renewal — so no
+    // Orders row here (it'd double-count), just save the address on the customer.
     if (session.mode === 'subscription') {
-      if (session.customer) {
-        // save the collected address on the customer so every weekly invoice
-        // carries it (invoice.customer_shipping)
-        const shipping = session.collected_information?.shipping_details;
-        if (shipping?.address) {
-          const a = shipping.address;
-          await stripe.customers.update(typeof session.customer === 'string' ? session.customer : session.customer.id, {
-            shipping: {
-              name: shipping.name,
-              address: {
-                line1: a.line1 ?? undefined, line2: a.line2 ?? undefined, city: a.city ?? undefined,
-                state: a.state ?? undefined, postal_code: a.postal_code ?? undefined, country: a.country ?? undefined,
-              },
-            },
-          });
-        }
-      }
-      // stream alert on signup only — the weekly charges (invoice.paid) don't get one.
+      await saveShippingOnCustomer(session);
+      // stream alert on signup only — renewals (invoice.paid) don't get one.
       // line 0 is the recurring price, named after the club/level
       await sendStreamAlert({
         source: 'merrbakes.com',
@@ -220,7 +226,13 @@ export async function POST(req: NextRequest) {
     const orderPage = await notionRes.json();
     await createOrderLineItems(ORDER_LINE_ITEMS_DB_ID, orderPage.id, lineItemsToRecord);
 
-    await sendStreamAlert({
+    await sendStreamAlert(weeklySignup ? {
+      // a weekly signup alerts as joining the club/level, same as monthly
+      source: 'merrbakes.com',
+      kind: 'subscription',
+      name: sessionStreamName(session),
+      summary: session.metadata?.membership_label ?? '',
+    } : {
       source: 'merrbakes.com',
       kind: 'purchase',
       name: sessionStreamName(session),
@@ -252,16 +264,22 @@ function formatCustomerShipping(shipping: Stripe.Invoice.CustomerShipping | null
 
 // the address collected at signup — used when an invoice has no
 // customer_shipping yet (the signup invoice can be paid before
-// checkout.session.completed has copied the address onto the customer)
+// checkout.session.completed has copied the address onto the customer).
+// Monthly signups are the subscription's own Checkout; weekly ones started
+// from a first-box payment Checkout, kept in metadata.signup_session.
 async function signupSession(subscriptionId: string): Promise<Stripe.Checkout.Session | null> {
   const sessions = await stripe.checkout.sessions.list({ subscription: subscriptionId, limit: 1 });
-  return sessions.data[0] ?? null;
+  if (sessions.data[0]) return sessions.data[0];
+  const signup = (await stripe.subscriptions.retrieve(subscriptionId)).metadata?.signup_session;
+  return signup ? stripe.checkout.sessions.retrieve(signup) : null;
 }
 
 // One Orders row (+ line items, so the packing-list rollups count it) per paid
-// membership charge: the signup invoice (first box, paid at checkout) and each
-// Friday 6pm charge after it. $0 invoices/lines (e.g. the trial line for the
-// weekly price at signup) aren't boxes and are skipped.
+// membership charge: a monthly signup invoice (first month, paid at checkout)
+// and each renewal, including every Friday 6pm weekly charge. A weekly
+// signup's first box is a plain payment, recorded as an order at checkout;
+// $0 invoices/lines (the trial that holds the weekly price until its first
+// Friday) aren't boxes and are skipped.
 async function recordSubscriptionInvoice(invoice: Stripe.Invoice) {
   if (!invoice.parent?.subscription_details || invoice.amount_paid <= 0 || !invoice.id) {
     return NextResponse.json({ ignored: true, reason: 'not a paid membership charge' });

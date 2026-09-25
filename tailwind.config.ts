@@ -24,6 +24,17 @@ const config: Config = {
         hand: ['var(--font-patrick-hand-sc)'],
         balsamiq: ['var(--font-balsamiq-sans)']
       },
+      // one-off yellow flash that fades out, for a field that appears after
+      // something else is filled in (e.g. the cart's referral field)
+      keyframes: {
+        highlight: {
+          '0%, 30%': { backgroundColor: '#FFE99F' },
+          '100%': { backgroundColor: 'transparent' },
+        },
+      },
+      animation: {
+        highlight: 'highlight 2.5s ease-out forwards',
+      },
     },
   },
   plugins: [],

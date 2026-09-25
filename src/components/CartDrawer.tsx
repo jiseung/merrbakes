@@ -16,7 +16,7 @@ const plates: Record<Plate, string> = {
 };
 
 const prose = "font-sans";
-const inputClass = `${prose} w-full mt-1 rounded-full px-4 py-2.5 text-lg text-merrbakes-brown bg-white border border-merrbakes-brown/20 outline-none focus:ring-4 focus:ring-merrbakes-yellow`;
+const inputClass = `${prose} w-full mt-1 rounded-full px-4 py-2.5 text-[1.0125rem] leading-[1.575rem] text-merrbakes-brown bg-white border border-merrbakes-brown/20 outline-none focus:ring-4 focus:ring-merrbakes-yellow`;
 
 export default function CartDrawer() {
   const { items, isOpen, close, setQuantity, remove, subtotalCents } = useCart();
@@ -29,6 +29,9 @@ export default function CartDrawer() {
   const [email, setEmail] = useState("");
   const [referredBy, setReferredBy] = useState("");
   const [lookup, setLookup] = useState<"idle" | "checking" | "existing" | "new">("idle");
+  // the referral field flashes yellow the first time it appears only — not
+  // again if they edit their email and it reappears
+  const [referralHighlighted, setReferralHighlighted] = useState(false);
   const [subscribeToList, setSubscribeToList] = useState(true);
   // promo code — the club-week code gives free shipping on variants Merr has
   // marked "Club Week Drop" in Notion; any other code is applied as a Stripe
@@ -45,7 +48,6 @@ export default function CartDrawer() {
   const [tipCents, setTipCents] = useState(0);
   const [tipNote, setTipNote] = useState("");
   const [streamName, setStreamName] = useState("");
-  const [streamAnonymous, setStreamAnonymous] = useState(false);
   const [checkingOut, setCheckingOut] = useState(false);
   const [error, setError] = useState("");
 
@@ -96,7 +98,6 @@ export default function CartDrawer() {
           promoCode,
           gift: isGift ? { recipientName: giftRecipient, message: giftMessage, addressFromMerr: giftAddressFromMerr } : undefined,
           streamName,
-          streamAnonymous,
           tipCents,
           tipNote,
         }),
@@ -113,7 +114,7 @@ export default function CartDrawer() {
           }).catch(() => {});
         }
         window.location.href = data.url;
-      } else { setError(data.error && res.status < 500 ? `${data.error}.` : copy.errors.generic); setCheckingOut(false); }
+      } else { setError(data.error && res.status < 500 ? data.error : copy.errors.generic); setCheckingOut(false); }
     } catch {
       setError(copy.errors.generic);
       setCheckingOut(false);
@@ -127,11 +128,17 @@ export default function CartDrawer() {
       <div className="absolute inset-0 bg-black/40" onClick={close} aria-hidden />
       <div className="relative w-full max-w-md h-full bg-merrbakes-pink shadow-xl flex flex-col font-hand">
         <div className="flex items-center justify-between px-5 h-16 border-b border-merrbakes-brown/20">
-          <div className="text-2xl font-black">{step === "cart" ? copy.title : copy.detailsTitle}</div>
+          <div className="flex items-center gap-1">
+            {step === "details" && (
+              <button type="button" onClick={() => { setStep("cart"); setError(""); }} aria-label={copy.backLabel}
+                      className="text-2xl px-2 -ml-2 hover:opacity-70">←</button>
+            )}
+            <div className="text-2xl font-black">{step === "cart" ? copy.title : copy.detailsTitle}</div>
+          </div>
           <button type="button" onClick={close} aria-label={copy.closeLabel} className="text-2xl px-2 hover:opacity-70">✕</button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-5 py-4">
+        <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col">
           {step === "cart" ? (
             items.length === 0 ? (
               <p className={`${prose} text-merrbakes-brown/70 text-lg mt-8 text-center`}>{copy.empty}</p>
@@ -166,8 +173,9 @@ export default function CartDrawer() {
               </div>
             )
           ) : (
-            <div className="flex flex-col gap-4">
-              <p className={`${prose} text-merrbakes-brown/70 text-lg`}>{copy.details.intro}</p>
+            // flex-1 + the tip's mt-auto keep the tip pinned just above the
+            // footer divider when the form is shorter than the drawer
+            <div className="flex-1 flex flex-col gap-4">
               <div>
                 <label className={`${prose} text-sm font-bold text-merrbakes-brown/70`}>{copy.details.emailLabel}</label>
                 <input type="email" value={email} autoComplete="email" placeholder={copy.details.emailPlaceholder}
@@ -182,31 +190,18 @@ export default function CartDrawer() {
                 {copy.details.subscribeLabel}
               </label>
               {lookup === "new" && (
-                <div>
+                <div onAnimationEnd={() => setReferralHighlighted(true)}
+                     className={`${referralHighlighted ? "" : "animate-highlight motion-reduce:animate-none"} rounded-2xl -mx-3 -my-2 px-3 py-2`}>
                   <label className={`${prose} text-sm font-bold text-merrbakes-brown/70`}>{copy.details.referralLabel}</label>
                   <input type="text" value={referredBy} placeholder={copy.details.referralPlaceholder}
                          onChange={(e) => setReferredBy(e.target.value)}
                          className={inputClass} />
                 </div>
               )}
-              <div>
-                <label className={`${prose} text-sm font-bold text-merrbakes-brown/70`}>{copy.details.promoLabel}</label>
-                <input type="text" value={promoCode} autoCapitalize="none" autoCorrect="off"
-                       onChange={(e) => setPromoCode(e.target.value)}
-                       className={inputClass} />
-              </div>
-              <TipPicker
-                cents={tipCents} onCentsChange={setTipCents}
-                note={tipNote} onNoteChange={setTipNote}
-                inputClassName={inputClass}
-                labelClassName={`${prose} text-sm font-bold text-merrbakes-brown/70`}
-                chipClassName={(on) => `${prose} rounded-full px-3 py-1.5 text-base font-bold border-2 transition ${on ? "bg-merrbakes-berry text-white border-merrbakes-berry" : "bg-white text-merrbakes-brown border-merrbakes-brown/30 hover:border-merrbakes-berry"}`} />
               <StreamShoutoutFields
                 name={streamName} onNameChange={setStreamName}
-                anonymous={streamAnonymous} onAnonymousChange={setStreamAnonymous}
                 inputClassName={inputClass}
-                labelClassName={`${prose} text-sm font-bold text-merrbakes-brown/70`}
-                hintClassName={`${prose} text-sm text-merrbakes-brown/70`} />
+                labelClassName={`${prose} text-sm font-bold text-merrbakes-brown/70`} />
               <label className={`${prose} flex items-center gap-2 text-base font-bold text-merrbakes-brown/80`}>
                 <input type="checkbox" checked={isGift} onChange={(e) => setIsGift(e.target.checked)} />
                 {copy.gift.toggle}
@@ -237,7 +232,14 @@ export default function CartDrawer() {
                   </div>
                 </div>
               )}
-              <button type="button" onClick={() => setStep("cart")} className={`${prose} text-sm text-merrbakes-brown/60 underline self-start`}>{copy.details.backToCart}</button>
+              <div className="mt-auto">
+                <TipPicker
+                  cents={tipCents} onCentsChange={setTipCents}
+                  note={tipNote} onNoteChange={setTipNote}
+                  inputClassName={inputClass}
+                  labelClassName={`${prose} text-sm font-bold text-merrbakes-brown/70`}
+                  chipClassName={(on) => `${prose} rounded-full px-3 py-1.5 text-base font-bold border-2 transition ${on ? "bg-merrbakes-berry text-white border-merrbakes-berry" : "bg-white text-merrbakes-brown border-merrbakes-brown/30 hover:border-merrbakes-berry"}`} />
+              </div>
             </div>
           )}
         </div>
@@ -248,6 +250,20 @@ export default function CartDrawer() {
               <span>{copy.subtotal}</span>
               <span>${(subtotalCents / 100).toFixed(2)}</span>
             </div>
+            {step === "details" && tipCents > 0 && (
+              <div className={`${prose} flex items-center justify-between text-base text-merrbakes-brown/70 -mt-2 mb-3`}>
+                <span>{copy.tip}</span>
+                <span>${(tipCents / 100).toFixed(2)}</span>
+              </div>
+            )}
+            {step === "details" && (
+              <div className="mb-3">
+                <input type="text" value={promoCode} autoCapitalize="none" autoCorrect="off"
+                       placeholder={copy.details.promoPlaceholder} aria-label={copy.details.promoPlaceholder}
+                       onChange={(e) => setPromoCode(e.target.value)}
+                       className={inputClass} />
+              </div>
+            )}
             {error && <p className={`${prose} text-merrbakes-berry text-sm mb-2`}>{error}</p>}
             {step === "cart" ? (
               <button type="button" onClick={() => setStep("details")}

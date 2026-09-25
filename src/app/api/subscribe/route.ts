@@ -3,23 +3,24 @@ import { stripe } from '@/lib/stripe';
 import { fetchVariantForCheckout } from '@/lib/notion';
 import { syncStripePrice } from '@/lib/reconcile';
 import { displayName } from '@/lib/shopItems';
-import { firstRecurringCharge } from '@/lib/billing';
-import { skippedFridays } from '@/lib/chargeCalendar';
+import { plannedFirstCharge, WEEKLY_SIGNUP } from '@/lib/weeklySignup';
+import { clubCopy } from '@/content/club';
 import { parseTip, tipLineItem } from '@/lib/tips';
 import { cleanStreamName } from '@/lib/streamAlert';
 
-// Membership signup via Stripe Checkout in subscription mode (called from
-// /club's join section). Card payments only (owner: no bank payments).
-// - weekly (Tweat of the Week): the first box is paid at checkout (a one-time
-//   line at the level's price); the weekly price then starts at the Friday 6pm
-//   charge after that box's cutoff — Stripe models the gap as a trial, which is
-//   also what anchors every later charge to Friday 6pm.
-// - monthly (Cookie / Tasting / Confectioner's): charged at signup, then the
-//   same date each month (Stripe's default; matches /club's FAQ and Ko-fi).
+// Membership signup via Stripe Checkout (called from /club's join section).
+// Card payments only (owner: no bank payments).
+// - weekly (Tweat of the Week): a payment-mode Checkout for just the first box
+//   (at the level's price) that saves the card; once it's paid,
+//   /api/stripe-webhook starts the weekly subscription from the Friday 6pm
+//   charge after that box's cutoff (lib/weeklySignup — why it's two steps).
+// - monthly (Cookie / Tasting / Confectioner's): a subscription-mode Checkout,
+//   charged at signup, then the same date each month (Stripe's default; matches
+//   /club's FAQ and Ko-fi).
 // Members manage/switch through /api/clubs/manage.
 export async function POST(req: NextRequest) {
   try {
-    const { variantId, email, streamName, streamAnonymous, tipCents, tipNote } = await req.json();
+    const { variantId, email, streamName, tipCents, tipNote } = await req.json();
     // optional one-time tip, charged with the signup (not every renewal)
     const tip = parseTip(tipCents, tipNote);
     if (typeof variantId !== 'string') {
@@ -46,45 +47,73 @@ export async function POST(req: NextRequest) {
       : synced.action === 'updated' ? synced.newPriceId
       : variant.stripePriceId;
 
-    const recurring = await stripe.prices.retrieve(price);
     const trimmedEmail = typeof email === 'string' ? email.trim() : '';
     const origin = new URL(req.url).origin;
-    const session = await stripe.checkout.sessions.create({
-      mode: 'subscription',
-      payment_method_types: ['card'],
+    // on-stream alert name, read back in /api/stripe-webhook (see lib/streamAlert)
+    const metadata = {
+      stream_name: cleanStreamName(streamName),
+      tip_cents: tip ? String(tip.cents) : '',
+      tip_note: tip?.note ?? '',
+    };
+    const shared = {
+      payment_method_types: ['card' as const],
       // card-only isn't enough on its own: Stripe's Link wallet brings its own
       // bank option, so hide Link too — no bank payments for orders/memberships
       // (owner, 2026-09-24; tips at /api/tip keep Link/bank)
-      wallet_options: { link: { display: 'never' } },
-      line_items: [
-        { price, quantity: 1 },
-        ...(weekly ? [{
-          price_data: {
-            currency: 'usd',
-            unit_amount: recurring.unit_amount ?? 0,
-            // notion_page_id lets /api/stripe-webhook count this as a box of the level
-            product_data: { name: `${label} — first box`, metadata: { notion_page_id: variant.id } },
-          },
-          quantity: 1,
-        }] : []),
-        ...(tip ? [tipLineItem(tip.cents)] : []),
-      ],
+      wallet_options: { link: { display: 'never' as const } },
       ...(trimmedEmail ? { customer_email: trimmedEmail } : {}),
-      // on-stream alert name, read back in /api/stripe-webhook (see lib/streamAlert)
-      metadata: {
-        stream_name: cleanStreamName(streamName),
-        stream_anonymous: streamAnonymous === true ? 'yes' : '',
-        tip_cents: tip ? String(tip.cents) : '',
-        tip_note: tip?.note ?? '',
-      },
-      subscription_data: {
-        // first box / first weekly charge both step over the Friday before cookie club week
-        ...(weekly ? { trial_end: Math.floor(firstRecurringCharge(new Date(), await skippedFridays()).getTime() / 1000) } : {}),
-        metadata: { notion_variant_id: variant.id },
-      },
-      shipping_address_collection: { allowed_countries: ['US'] },
+      shipping_address_collection: { allowed_countries: ['US' as const] },
       success_url: `${origin}/order/{CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/club#join`,
+    };
+
+    if (weekly) {
+      const recurring = await stripe.prices.retrieve(price);
+      const amount = recurring.unit_amount ?? 0;
+      // first box / first weekly charge both step over the Friday before cookie club week
+      const firstCharge = await plannedFirstCharge();
+      const firstChargeDay = firstCharge.toLocaleString('en-US', { timeZone: 'America/Chicago', weekday: 'long', month: 'long', day: 'numeric' });
+      const session = await stripe.checkout.sessions.create({
+        ...shared,
+        mode: 'payment',
+        customer_creation: 'always',
+        // saves the card for the weekly charges (Stripe shows its own consent line)
+        payment_intent_data: { setup_future_usage: 'off_session' },
+        line_items: [
+          {
+            price_data: {
+              currency: 'usd',
+              unit_amount: amount,
+              // notion_page_id lets /api/stripe-webhook count this as a box of the
+              // level, and the order page recognise it as a membership
+              product_data: { name: `${label} — first box`, metadata: { notion_page_id: variant.id } },
+            },
+            quantity: 1,
+          },
+          ...(tip ? [tipLineItem(tip.cents)] : []),
+        ],
+        custom_text: { submit: { message: clubCopy.join.weeklyCheckoutNote(`$${(amount / 100).toFixed(2)}`, firstChargeDay) } },
+        metadata: {
+          ...metadata,
+          membership: WEEKLY_SIGNUP,
+          membership_label: label,
+          notion_variant_id: variant.id,
+          weekly_price: price,
+          trial_end: String(Math.floor(firstCharge.getTime() / 1000)),
+        },
+      });
+      return NextResponse.json({ url: session.url });
+    }
+
+    const session = await stripe.checkout.sessions.create({
+      ...shared,
+      mode: 'subscription',
+      line_items: [
+        { price, quantity: 1 },
+        ...(tip ? [tipLineItem(tip.cents)] : []),
+      ],
+      metadata,
+      subscription_data: { metadata: { notion_variant_id: variant.id } },
     });
     return NextResponse.json({ url: session.url });
   } catch (error) {

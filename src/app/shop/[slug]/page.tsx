@@ -10,6 +10,11 @@ import { productCopy as copy } from "@/content/product";
 import { DropItem, Variant, displayName, slugify, priceToCents, variantDisplayName } from "@/lib/shopItems";
 import { useCart } from "@/lib/cart";
 import StorefrontHeader from "@/components/StorefrontHeader";
+import ProductReviews from "@/components/ProductReviews";
+import { sampleReviews } from "@/content/sampleReviews";
+
+// mockup: sample reviews on every product page, local dev only — never on the live site
+const showSampleReviews = process.env.NODE_ENV !== "production";
 
 const prose = "font-sans";
 const btnPrimary =
@@ -90,7 +95,7 @@ export default function ProductPage({ params }: { params: Promise<{ slug: string
   return (
     <main className="min-h-screen bg-merrbakes-pink text-merrbakes-brown font-hand">
       {/* NAV — identical to /shop */}
-      <StorefrontHeader logoHref={HOME} ctaHref={home("#club")} resolveHref={home} />
+      <StorefrontHeader logoHref={HOME} ctaHref="/club" resolveHref={home} />
 
       <div className="max-w-6xl mx-auto px-5 py-12">
         <Link href="/shop" className="inline-block mb-6 text-lg font-bold text-merrbakes-berry hover:underline">{copy.backLink}</Link>
@@ -183,6 +188,8 @@ export default function ProductPage({ params }: { params: Promise<{ slug: string
                 </div>
               </div>
             </div>
+
+            {showSampleReviews && <ProductReviews reviews={sampleReviews} fallbackPhotoUrl={item.photoUrl} />}
           </>
         )}
       </div>

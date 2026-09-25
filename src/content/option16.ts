@@ -49,7 +49,7 @@ export const option16Copy = {
     socials: [
       { label: "twitch", href: "https://twitch.tv/merrbakes", tooltip: "Twitch: watch Merr live" },
       { label: "youtube", href: "https://www.youtube.com/@MerrBakes", tooltip: "YouTube: funny clips & livestreams" },
-      { label: "tiktok", href: "https://www.tiktok.com/@merrbakes", tooltip: "TikTok: funny merr clips" },
+      { label: "tiktok", href: "https://www.tiktok.com/@merrbakes", tooltip: "TikTok: funny Merr clips" },
       { label: "instagram", href: "https://www.instagram.com/MerrBakes", tooltip: "Instagram: menus & updates" },
       { label: "discord", href: "https://discord.gg/uRAWAWMQKU", tooltip: "Discord: join the merringue gang" },
       { label: "ko-fi", href: "https://ko-fi.com/merrbakes", tooltip: "Ko-fi: support the bakery" },
@@ -106,7 +106,7 @@ export const option16Copy = {
           { label: "the membership clubs", href: "/club" },
           { label: "the shop", href: "/shop" },
           { label: "the ko-fi shops", href: "https://ko-fi.com/merrbakes/shop" },
-          { label: "gifts for merr", href: "https://throne.com/merrbakes" }
+          { label: "gifts for Merr", href: "https://throne.com/merrbakes" }
         ],
       },
       {
@@ -116,7 +116,7 @@ export const option16Copy = {
           { label: "discord", href: "https://discord.gg/uRAWAWMQKU" },
           { label: "mailing list", href: "#subscribe" },
           // standalone tip: straight to a Stripe page where they pick the amount
-          { label: "tip merr 💖", href: "/api/tip" },
+          { label: "tip Merr 💖", href: "/api/tip" },
         ],
       },
     ],

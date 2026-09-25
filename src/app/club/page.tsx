@@ -2,7 +2,7 @@
 // /club — a dedicated membership landing page. The nav is pulled verbatim from
 // option16, and this page owns the only tier-pricing cards site-wide (option16's
 // club section links here instead of duplicating them). The rest of the page
-// (how it works, benefits, faq, join) lives in content/club.ts. The final #join
+// (how it works, faq, join) lives in content/club.ts. The final #join
 // section signs people up on merrbakes.com (Stripe subscriptions via
 // /api/subscribe) for any club. New members join here only; existing Ko-fi
 // members stay on Ko-fi.
@@ -24,11 +24,11 @@ type ClubsResponse = {
 // "YYYY-MM-DD" calendar date (no time) -> "friday, october 16"
 function formatDate(ymd: string): string {
   const [y, m, d] = ymd.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, d)).toLocaleString("en-US", { timeZone: "UTC", weekday: "long", month: "long", day: "numeric" }).toLowerCase();
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleString("en-US", { timeZone: "UTC", weekday: "long", month: "long", day: "numeric" });
 }
 
 function formatDay(iso: string): string {
-  return new Date(iso).toLocaleString("en-US", { timeZone: "America/Chicago", weekday: "long", month: "long", day: "numeric" }).toLowerCase();
+  return new Date(iso).toLocaleString("en-US", { timeZone: "America/Chicago", weekday: "long", month: "long", day: "numeric" });
 }
 
 const prose = "font-sans";
@@ -118,7 +118,6 @@ export default function ClubPage() {
   const [tipCents, setTipCents] = useState(0);
   const [tipNote, setTipNote] = useState("");
   const [streamName, setStreamName] = useState("");
-  const [streamAnonymous, setStreamAnonymous] = useState(false);
   const [joinStatus, setJoinStatus] = useState<"idle" | "sending" | "error">("idle");
   const [joinError, setJoinError] = useState("");
   async function subscribe(e: FormEvent) {
@@ -129,7 +128,7 @@ export default function ClubPage() {
       const res = await fetch("/api/subscribe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ variantId, email, streamName, streamAnonymous, tipCents, tipNote }),
+        body: JSON.stringify({ variantId, email, streamName, tipCents, tipNote }),
       });
       const d = await res.json();
       if (d.url) { window.location.href = d.url; return; }
@@ -205,6 +204,15 @@ export default function ClubPage() {
             </div>
           ))}
         </div>
+        {/* already a member? — right under the cards (owner, 2026-09-25); was in #join */}
+        <div className="mt-10 max-w-2xl mx-auto text-center bg-white rounded-3xl border border-merrbakes-brown/15 shadow-sm p-6">
+          <h3 className="text-2xl font-black">{copy.join.manage.heading}</h3>
+          <p className={`${prose} text-lg mt-1 text-merrbakes-brown/75`}>
+            {copy.join.manage.body}
+            <a href="/api/clubs/manage" className="font-bold text-merrbakes-berry hover:underline">{copy.join.manage.linkLabel}</a>
+          </p>
+          <p className={`${prose} text-sm mt-2 text-merrbakes-brown/60`}>{copy.join.manage.finePrint}</p>
+        </div>
         </div>
       </section>
 
@@ -230,57 +238,36 @@ export default function ClubPage() {
         </div>
       </section>
 
-      {/* BENEFITS */}
-      <section className="bg-merrbakes-brown">
-        <div className="max-w-6xl mx-auto px-5 py-16">
-          <div className="text-center max-w-2xl mx-auto mb-10">
-            <div className="text-merrbakes-yellow text-lg font-bold lowercase tracking-wide">{copy.benefits.eyebrow}</div>
-            <h2 className={`${h2} text-white`}>{copy.benefits.heading}</h2>
+      {/* FAQ — colors from the old benefits section (owner, 2026-09-25) */}
+      <section id="faq" className="bg-merrbakes-brown">
+        <div className="max-w-3xl mx-auto px-5 py-16">
+          <div className="text-center mb-10">
+            <div className="text-merrbakes-yellow text-lg font-bold lowercase tracking-wide">{copy.faq.eyebrow}</div>
+            <h2 className={`${h2} text-white`}>{copy.faq.heading}</h2>
           </div>
-          <div className="max-w-2xl mx-auto bg-white rounded-3xl border border-merrbakes-brown/15 shadow-sm p-8 sm:p-10">
-            <ul className="flex flex-col items-center text-center divide-y divide-merrbakes-brown/10">
-              {copy.benefits.items.map((b) => (
-                <li key={b.title} className="flex flex-col items-center py-5 first:pt-0 last:pb-0">
-                  <div className="text-3xl">{b.icon}</div>
-                  <div className="text-xl font-bold mt-1">{b.title}</div>
-                  <p className={`${prose} text-merrbakes-brown/75 text-base mt-1`}>{b.body}</p>
-                </li>
-              ))}
-            </ul>
+          <div className="flex flex-col gap-3">
+            {copy.faq.items.map((f) => (
+              <details key={f.q} className="group bg-white rounded-2xl border border-merrbakes-brown/15 px-6 py-4 shadow-sm">
+                <summary className="cursor-pointer list-none flex items-center justify-between gap-4 text-xl font-bold">
+                  {f.q}
+                  <span className="text-merrbakes-berry text-2xl leading-none transition-transform group-open:rotate-45">＋</span>
+                </summary>
+                <p className={`${prose} text-merrbakes-brown/75 text-lg mt-3`}>{f.a}</p>
+                {f.link && (
+                  <a href={f.link.href} className={`${prose} inline-block text-merrbakes-berry font-bold text-lg mt-2 hover:underline`}>
+                    {f.link.label}
+                  </a>
+                )}
+              </details>
+            ))}
           </div>
-        </div>
-      </section>
-
-      {/* FAQ */}
-      <section id="faq" className="max-w-3xl mx-auto px-5 py-16">
-        <div className="text-center mb-10">
-          <div className={eyebrow}>{copy.faq.eyebrow}</div>
-          <h2 className={h2}>{copy.faq.heading}</h2>
-        </div>
-        <div className="flex flex-col gap-3">
-          {copy.faq.items.map((f) => (
-            <details key={f.q} className="group bg-white rounded-2xl border border-merrbakes-brown/15 px-6 py-4 shadow-sm">
-              <summary className="cursor-pointer list-none flex items-center justify-between gap-4 text-xl font-bold">
-                {f.q}
-                <span className="text-merrbakes-berry text-2xl leading-none transition-transform group-open:rotate-45">＋</span>
-              </summary>
-              <p className={`${prose} text-merrbakes-brown/75 text-lg mt-3`}>{f.a}</p>
-              {f.link && (
-                <a href={f.link.href} className={`${prose} inline-block text-merrbakes-berry font-bold text-lg mt-2 hover:underline`}>
-                  {f.link.label}
-                </a>
-              )}
-            </details>
-          ))}
         </div>
       </section>
 
       {/* JOIN — signup on merrbakes.com for any club (Stripe subscription) */}
       <section id="join" className="bg-gradient-to-br from-twitch-purple to-merrbakes-berry text-white scroll-mt-20">
         <div className="max-w-5xl mx-auto px-5 py-16">
-          <div className="text-merrbakes-yellow text-lg font-bold lowercase tracking-wide">{copy.join.eyebrow}</div>
           <h2 className="text-4xl font-black mt-1 text-merrbakes-yellow">{copy.join.heading}</h2>
-          <p className={`${prose} text-xl mt-3 font-semibold`}>{copy.join.perk}</p>
           {/* Merr's current/next break (Notion calendar "Break"): no membership
               charges or boxes during it */}
           {joinData?.breaks?.[0] && (
@@ -331,6 +318,13 @@ export default function ClubPage() {
                 {club.interval === "week"
                   ? copy.join.weeklyBilling(option.price, formatDay(joinData.weekly.firstBoxCutoff), formatDay(joinData.weekly.firstWeeklyCharge))
                   : copy.join.monthlyBilling(option.price)}
+                {club.interval === "week" && (
+                  <>
+                    {" "}{copy.join.changeLevel.before}{" "}
+                    <a href="/api/clubs/manage" className="underline text-merrbakes-yellow hover:opacity-80">{copy.join.changeLevel.linkLabel}</a>
+                    {copy.join.changeLevel.after}
+                  </>
+                )}
               </p>
               {club.interval === "week" && joinData.weekly.nextCookieFriday && (
                 <p className={`${prose} text-base mt-2 opacity-90 max-w-3xl`}>{copy.join.cookieWeekNote(formatDate(joinData.weekly.nextCookieFriday))}</p>
@@ -346,10 +340,8 @@ export default function ClubPage() {
               <div className="mt-4 max-w-xl">
                 <StreamShoutoutFields
                   name={streamName} onNameChange={setStreamName}
-                  anonymous={streamAnonymous} onAnonymousChange={setStreamAnonymous}
                   inputClassName={`${prose} w-full mt-1 rounded-full px-5 py-3 text-lg text-merrbakes-brown bg-white outline-none focus:ring-4 focus:ring-merrbakes-yellow`}
-                  labelClassName={`${prose} text-base font-bold`}
-                  hintClassName={`${prose} text-base opacity-90`} />
+                  labelClassName={`${prose} text-base font-bold`} />
               </div>
               <div className="mt-4 flex flex-col sm:flex-row gap-3 max-w-xl">
                 <input type="email" value={email} placeholder={copy.join.emailPlaceholder} aria-label={copy.join.emailLabel} autoComplete="email"
@@ -363,12 +355,6 @@ export default function ClubPage() {
               {joinStatus === "error" && <p className={`${prose} text-base mt-2 font-semibold`}>{joinError}</p>}
             </form>
           )}
-
-          <div className="mt-12 rounded-3xl bg-white/10 border border-white/25 p-6">
-            <h3 className="text-2xl font-black">{copy.join.manage.heading}</h3>
-            <p className={`${prose} text-lg mt-1 opacity-90`}>{copy.join.manage.body}</p>
-            <a href="/api/clubs/manage" className="inline-block mt-3 text-xl font-bold text-merrbakes-yellow hover:underline">{copy.join.manage.linkLabel}</a>
-          </div>
         </div>
       </section>
 

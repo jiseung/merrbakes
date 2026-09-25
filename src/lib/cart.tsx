@@ -57,9 +57,13 @@ export function CartProvider({ children }: { children: ReactNode }) {
     // a Stripe Checkout redirect back to /shop?checkout=success means payment
     // went through — clear the local cart (the order of record is the webhook,
     // this is just tidying up the client-side cart UI).
+    // /shop?checkout=cancelled is Stripe's back/cancel link — reopen the cart
+    // so they land where they left off rather than on a bare shop page.
     const params = new URLSearchParams(window.location.search);
-    if (params.get("checkout") === "success") {
-      localStorage.removeItem(STORAGE_KEY);
+    const checkoutResult = params.get("checkout");
+    if (checkoutResult === "success" || checkoutResult === "cancelled") {
+      if (checkoutResult === "success") localStorage.removeItem(STORAGE_KEY);
+      else setIsOpen(true);
       params.delete("checkout");
       const rest = params.toString();
       window.history.replaceState(null, "", window.location.pathname + (rest ? `?${rest}` : ""));

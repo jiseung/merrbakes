@@ -5,41 +5,53 @@ export const cartCopy = {
   title: "your cart",
   detailsTitle: "almost there",
   closeLabel: "close cart",
+  backLabel: "back to cart",
   empty: "Oh no, your cart is empty! It definitely needs something tasty from the menu.",
   each: "each",
   remove: "remove",
 
   details: {
-    intro: "just need your email before payment.",
-    emailLabel: "email",
+    emailLabel: "Email address",
     emailPlaceholder: "you@email.com",
-    checking: "checking…",
-    subscribeLabel: "subscribe to email list",
-    referralLabel: "who referred you? (optional)",
-    referralPlaceholder: "their name",
+    checking: "Checking…",
+    subscribeLabel: "Subscribe to email list",
+    referralLabel: "Who referred you? (Optional)",
+    referralPlaceholder: "Their name or handle",
     // the club-week code gives free shipping on the drop item; any other code is
     // looked up as a Stripe promotion code and applied at checkout
-    promoLabel: "promo code (optional)",
-    backToCart: "← back to cart",
+    promoPlaceholder: "Promo code (Optional)",
   },
 
   gift: {
-    toggle: "🎁 this is a gift",
-    recipientLabel: "who's it for?",
-    recipientPlaceholder: "their name or username",
-    addressAtCheckout: "i'll enter their shipping address at checkout",
-    addressFromMerr: "i don't have their address — merr will reach out to them for it",
-    messageLabel: "gift message (optional)",
+    toggle: "🎁 Is this a gift?",
+    recipientLabel: "Who is it for?",
+    recipientPlaceholder: "Their name or handle",
+    addressAtCheckout: "I'll enter their shipping address at checkout",
+    addressFromMerr: "I don't have their address — Merr will reach out to them for it",
+    messageLabel: "Gift message (optional)",
+    // shown on Stripe's checkout page and as the payment's description in
+    // Merr's Stripe dashboard; {name} is the recipient
+    stripeAddressNote: "🎁 This is a gift for {name} — enter their shipping address.",
+    stripeMerrAsksNote: "🎁 This is a gift for {name} — Merr will reach out to them for their shipping address.",
+    stripeDescription: "🎁 Gift for {name}",
   },
 
   subtotal: "subtotal",
+  tip: "Tip for Merr",
   checkoutButton: "checkout →",
   continueButton: "continue →",
   redirecting: "redirecting…",
 
   errors: {
-    email: "enter your email to continue.",
-    giftRecipient: "add who the gift is for.",
-    generic: "something went wrong starting checkout — try again in a moment.",
+    email: "Enter your email to continue.",
+    giftRecipient: "Add who the gift is for.",
+    generic: "Something went wrong starting checkout — try again in a moment.",
+    // returned by /api/checkout and shown in the cart as-is
+    invalidPromo: "That code isn't valid.",
+    missingItems: "Your cart is empty.",
+    invalidLine: "Something's wrong with an item in your cart — try removing it and adding it again.",
+    unavailable: "One of the items in your cart is no longer available.",
+    membershipInCart: "Memberships sign up on their own page, not through the cart.",
+    pricesUpdating: "Prices are being updated — please try again in a minute.",
   },
 };

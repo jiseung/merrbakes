@@ -4,8 +4,8 @@
 // instead — one MixItUp command covers Ko-fi and merrbakes.com alike.
 // - new signups only, never renewals (weekly Tweat / monthly Ko-fi charges)
 // - no buyer messages or amounts on stream; items are listed without quantities
-// - name: "Anonymous" if they opted out, else the "name shown on stream" they
-//   typed at checkout, else their first name
+// - name: the "name shown on stream" they typed at checkout, else "Anonymous"
+//   (owner, 2026-09-25 — previously fell back to their first name from Stripe)
 //
 // MIXITUP_WEBHOOK_URL is MixItUp's webhook trigger URL (it embeds a secret —
 // anyone holding it can fire the alert). Unset = alerts off.
@@ -36,11 +36,8 @@ export function cleanStreamName(raw: unknown): string {
   return raw.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, STREAM_NAME_MAX);
 }
 
-export function streamName(opts: { anonymous?: boolean; chosenName?: string; fullName?: string | null }): string {
-  if (opts.anonymous) return ANONYMOUS;
-  if (opts.chosenName) return opts.chosenName;
-  const first = (opts.fullName ?? '').trim().split(/\s+/)[0];
-  return first || ANONYMOUS;
+export function streamName(chosenName: string): string {
+  return chosenName || ANONYMOUS;
 }
 
 // Ko-fi's from_name is the supporter's own public display name, so it's shown

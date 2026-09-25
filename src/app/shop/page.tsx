@@ -224,7 +224,7 @@ export default function ShopPage() {
   return (
     <main className="min-h-screen bg-merrbakes-pink text-merrbakes-brown font-hand">
       {/* NAV — identical to option16 */}
-      <StorefrontHeader logoHref={HOME} ctaHref={home("#club")} resolveHref={home} />
+      <StorefrontHeader logoHref={HOME} ctaHref="/club" resolveHref={home} />
 
       {/* MENU */}
       <section className="max-w-6xl mx-auto px-5 py-16">

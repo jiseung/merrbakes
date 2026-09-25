@@ -25,7 +25,7 @@ export default function TipPicker(p: Props) {
           <button key={d} type="button" onClick={() => p.onCentsChange(d * 100)} className={p.chipClassName(p.cents === d * 100)}>${d}</button>
         ))}
         <label className={`${p.chipClassName(!isPreset)} flex items-center gap-1`}>
-          <span>{copy.other} $</span>
+          <span>$</span>
           <input type="number" min={1} max={500} step={1} inputMode="numeric" placeholder={copy.otherPlaceholder}
                  value={isPreset ? "" : p.cents / 100}
                  onChange={(e) => p.onCentsChange(Math.max(0, Math.round(Number(e.target.value) * 100) || 0))}

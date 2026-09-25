@@ -6,6 +6,7 @@ import { displayName } from '@/lib/shopItems';
 import { isClubWeekCode } from '@/lib/promo';
 import { parseTip, tipLineItem } from '@/lib/tips';
 import { cleanStreamName } from '@/lib/streamAlert';
+import { cartCopy } from '@/content/cart';
 
 const ORDERS_DB_ID = process.env.NOTION_ORDERS_DB_ID;
 
@@ -72,10 +73,10 @@ function computeShippingCents(
 
 export async function POST(req: NextRequest) {
   try {
-    const { items, email, referredBy, promoCode, gift, streamName, streamAnonymous, tipCents, tipNote } = await req.json();
+    const { items, email, referredBy, promoCode, gift, streamName, tipCents, tipNote } = await req.json();
     const tip = parseTip(tipCents, tipNote);
     if (!Array.isArray(items) || items.length === 0) {
-      return NextResponse.json({ error: 'missing items' }, { status: 400 });
+      return NextResponse.json({ error: cartCopy.errors.missingItems }, { status: 400 });
     }
 
     // one promo field in the cart: the club-week code (free shipping on drop
@@ -88,7 +89,7 @@ export async function POST(req: NextRequest) {
     if (code && !clubWeekCode) {
       const found = await stripe.promotionCodes.list({ code, active: true, limit: 1 });
       if (!found.data[0]) {
-        return NextResponse.json({ error: "that code isn't valid" }, { status: 400 });
+        return NextResponse.json({ error: cartCopy.errors.invalidPromo }, { status: 400 });
       }
       stripePromotionCode = found.data[0].id;
     }
@@ -97,7 +98,7 @@ export async function POST(req: NextRequest) {
     const giftRecipient = typeof giftInput?.recipientName === 'string' ? giftInput.recipientName.trim().slice(0, 100) : '';
     const giftMessage = typeof giftInput?.message === 'string' ? giftInput.message.trim().slice(0, GIFT_MESSAGE_MAX) : '';
     if (giftInput && !giftRecipient) {
-      return NextResponse.json({ error: "add the gift recipient's name" }, { status: 400 });
+      return NextResponse.json({ error: cartCopy.errors.giftRecipient }, { status: 400 });
     }
     const giftAddressFromMerr = !!giftInput && giftInput.addressFromMerr === true;
 
@@ -109,16 +110,16 @@ export async function POST(req: NextRequest) {
     const shippingInputs = [];
     for (const line of items as CartLine[]) {
       if (typeof line.variantId !== 'string') {
-        return NextResponse.json({ error: 'invalid cart line' }, { status: 400 });
+        return NextResponse.json({ error: cartCopy.errors.invalidLine }, { status: 400 });
       }
       const variant = await fetchVariantForCheckout(line.variantId);
       if (!variant) {
-        return NextResponse.json({ error: 'one of the items in your cart is no longer available' }, { status: 404 });
+        return NextResponse.json({ error: cartCopy.errors.unavailable }, { status: 404 });
       }
       // memberships are subscriptions with their own signup (/api/subscribe) —
       // a one-time cart charge would bill them once and never again
       if (variant.shopItemType === 'Recurring') {
-        return NextResponse.json({ error: 'memberships sign up on their own page, not through the cart' }, { status: 400 });
+        return NextResponse.json({ error: cartCopy.errors.membershipInCart }, { status: 400 });
       }
       // Safety net for Notion edits the sync hasn't picked up yet: make sure the
       // Stripe Price matches Notion's current price (creating/replacing it if not)
@@ -130,7 +131,7 @@ export async function POST(req: NextRequest) {
       const synced = await syncStripePrice(variant, label);
       if (synced.action === 'error') {
         console.log('checkout price sync error:', variant.id, synced.error);
-        return NextResponse.json({ error: 'prices are being updated — please try again in a minute' }, { status: 409 });
+        return NextResponse.json({ error: cartCopy.errors.pricesUpdating }, { status: 409 });
       }
       const stripePriceId =
         synced.action === 'created' ? synced.priceId
@@ -161,6 +162,13 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // gift orders say so on Stripe's page (by the address form, or above the pay
+    // button when there's no address form) and in the payment's description
+    const giftNote = (text: string) => text.replace('{name}', giftRecipient);
+    const giftCheckoutText = !giftInput ? {}
+      : collectAddress ? { custom_text: { shipping_address: { message: giftNote(cartCopy.gift.stripeAddressNote) } } }
+      : { custom_text: { submit: { message: giftNote(needsShipping ? cartCopy.gift.stripeMerrAsksNote : cartCopy.gift.stripeDescription) } } };
+
     const origin = new URL(req.url).origin;
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
@@ -177,6 +185,8 @@ export async function POST(req: NextRequest) {
       // buyers wouldn't be searchable/selectable in the Dashboard later (e.g.
       // to restrict a referral promo code to a specific person).
       customer_creation: 'always',
+      ...giftCheckoutText,
+      ...(giftInput ? { payment_intent_data: { description: giftNote(cartCopy.gift.stripeDescription) } } : {}),
       // Stripe allows either a pre-applied discount or its own promo box, not both
       ...(stripePromotionCode ? { discounts: [{ promotion_code: stripePromotionCode }] } : { allow_promotion_codes: true }),
       // pre-fills Stripe's own email field with what the pre-checkout step
@@ -197,7 +207,6 @@ export async function POST(req: NextRequest) {
         tip_note: tip?.note ?? '',
         // on-stream alert name, read back in /api/stripe-webhook (see lib/streamAlert)
         stream_name: cleanStreamName(streamName),
-        stream_anonymous: streamAnonymous === true ? 'yes' : '',
       },
       // these are baked-to-order and shipped — collect an address so a completed
       // order actually has somewhere to go (see /api/stripe-webhook).

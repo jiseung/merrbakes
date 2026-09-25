@@ -381,7 +381,7 @@ export default function Home() {
                 ) : (
                   <div className="aspect-square rounded-2xl grid place-items-center text-5xl" style={{ background: plates.butter }}>🎁</div>
                 )}
-                <div className="text-merrbakes-brown text-lg font-bold lowercase tracking-wide mt-3 text-center">{formatMonth(m.month)}</div>
+                <div className="text-merrbakes-brown text-lg font-bold tracking-wide mt-3 text-center">{formatMonth(m.month)}</div>
               </div>
             ))}
           </div>}

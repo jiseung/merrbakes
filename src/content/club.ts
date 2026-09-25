@@ -62,29 +62,37 @@ export const clubCopy = {
   // replaces the old mailing-list box: signup for every club sold on
   // merrbakes.com (Stripe). Prices/levels come live from Notion.
   join: {
-    eyebrow: "✿ join on merrbakes.com",
     heading: "sign up for a club",
-    // the incentive for joining here instead of Ko-fi (owner, 2026-09-24)
-    perk: "🚚 join here and get free shipping on club week drops.",
     pickClub: "pick your club",
     pickLevel: "pick your level",
     // "{n}" = tweats per week from the level's Quantity multiplier in Notion
     tweatsPerWeek: (n: number) => (n === 1 ? "1 tweat every week" : `${n} tweats every week`),
-    levelNote: "merr picks what goes in your box — different tweats or extra servings.",
+    levelNote: "Merr picks what goes in your box — different tweats or extra servings.",
     perWeek: "/ week",
     perMonth: "/ month",
     // {price} = chosen option's price, {box} = first box's cutoff, {weekly} = first Friday charge
     weeklyBilling: (price: string, box: string, weekly: string) =>
-      `you'll pay ${price} today for your first box (finalized ${box}), then every friday at 6pm central starting ${weekly}. change your level any time before friday 6pm and that week's box follows it.`,
-    monthlyBilling: (price: string) => `you'll pay ${price} today, then on the same date each month.`,
+      `You'll pay ${price} today for your first box (finalized ${box}), then every Friday at 6pm central starting ${weekly}.`,
+    // how weekly members switch levels (Stripe's portal via /api/clubs/manage);
+    // shown after weeklyBilling, with linkLabel as the link
+    changeLevel: {
+      before: "Change your level any time: go to",
+      linkLabel: "Manage my membership",
+      after: ".",
+    },
+    // shown above the pay button on Stripe's page for a weekly signup, which
+    // charges only the first box; {price} = weekly price, {day} = first Friday charge
+    weeklyCheckoutNote: (price: string, day: string) =>
+      `Today's charge is your first box. After that, your card is charged ${price} every Friday at 6pm Central, starting ${day}. Change your level or cancel any time from "Manage my membership" on merrbakes.com/club.`,
+    monthlyBilling: (price: string) => `You'll pay ${price} today, then on the same date each month.`,
     // {start}/{end} = Merr's current or next break (Notion calendar "Break")
     breakNote: (start: string, end: string) =>
       start === end
-        ? `🌙 merr's taking a break on ${start} — no membership charges or boxes that day. everything picks back up after.`
-        : `🌙 merr's taking a break ${start} – ${end} — no membership charges or boxes during it. everything picks back up after.`,
+        ? `🌙 Merr's taking a break on ${start} — everything picks back up after.`
+        : `🌙 Merr's taking a break ${start} – ${end} — everything picks back up after.`,
     // {date} = the next skipped Friday (the one before cookie club week)
     cookieWeekNote: (date: string) =>
-      `no tweat box or charge the friday before cookie club week (next one: ${date}) — merr's busy baking cookie club boxes. if your box would land then, it moves to the following friday.`,
+      `No tweat box charge the Friday before Cookie Club week (next one: ${date}) — Merr's busy baking cookie club boxes. if your box would land then, it moves to the following Friday.`,
     emailLabel: "your email",
     emailPlaceholder: "you@email.com",
     submitLabel: "join the club",
@@ -93,8 +101,9 @@ export const clubCopy = {
     unavailable: "signups are closed right now — check back soon!",
     manage: {
       heading: "already a member?",
-      body: "joined here? change your club or level, update your address or card, or cancel. (joined on ko-fi? manage it on ko-fi.)",
+      body: "Joined here? Click to ",
       linkLabel: "manage my membership →",
+      finePrint: "(Joined on ko-fi? Manage it on ko-fi.)"
     },
   },
 
@@ -103,18 +112,8 @@ export const clubCopy = {
     heading: "three steps to treats on repeat.",
     steps: [
       { icon: "😋", title: "pick your club", body: "Choose any club. Change or cancel anytime." },
-      { icon: "🍪", title: "merr bakes it fresh", body: "Every box is made by hand, in small batches, live on stream." },
+      { icon: "🍪", title: "Merr bakes it fresh", body: "Every box is made by hand, in small batches, live on stream." },
       { icon: "🥳", title: "a box lands monthly", body: "Carefully-packed box filled with yummy treats shows up at your door." },
-    ],
-  },
-
-  benefits: {
-    eyebrow: "✿ what you get",
-    heading: "more than just cookies.",
-    items: [
-      { icon: "📜", title: "vote on the menu", body: "Help pick what Merr bakes next week." },
-      { icon: "💙", title: "role in discord", body: "An exclusive corner of the server just for members." },
-      { icon: "💯", title: "cancel anytime", body: "No contracts. Cancel whenever." },
     ],
   },
 

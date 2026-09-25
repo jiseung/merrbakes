@@ -25,5 +25,16 @@ export const productCopy = {
     href: "https://ko-fi.com/merrbakes/shop",
   },
 
+  reviews: {
+    heading: "Reviews",
+    countOne: "review",
+    countMany: "reviews",
+    photoAlt: "Photo from",
+    // shown when a review has no author name
+    anonymousName: "Anonymous",
+    enlargeLabel: "Enlarge photo from",
+    closePhotoLabel: "Close photo",
+  },
+
   footer: shopCopy.footer,
 };

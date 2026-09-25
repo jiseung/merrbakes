@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe';
 import { standaloneTipPrice } from '@/lib/tips';
+import { tipsCopy } from '@/content/tips';
 
 // Standalone "tip merr" (footer link): straight to a Stripe checkout holding
 // only the tip — the buyer types the amount and can leave a note (visible in
@@ -15,7 +16,7 @@ export async function GET(req: NextRequest) {
       custom_fields: [
         {
           key: 'note',
-          label: { type: 'custom', custom: 'note for merr (optional)' },
+          label: { type: 'custom', custom: tipsCopy.standalone.noteLabel },
           type: 'text',
           optional: true,
           text: { maximum_length: 255 },
@@ -23,7 +24,7 @@ export async function GET(req: NextRequest) {
         {
           // same "name shown on stream" idea as the cart/club forms (lib/streamAlert)
           key: 'stream_name',
-          label: { type: 'custom', custom: 'name shown on stream (optional)' },
+          label: { type: 'custom', custom: tipsCopy.standalone.streamNameLabel },
           type: 'text',
           optional: true,
           text: { maximum_length: 30 },
