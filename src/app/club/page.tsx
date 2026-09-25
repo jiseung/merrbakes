@@ -15,7 +15,11 @@ import StreamShoutoutFields from "@/components/StreamShoutoutFields";
 
 type ClubOption = { variantId: string; name: string; price: string; tweats: number | null; isDefault: boolean };
 type Club = { id: string; name: string; interval: "week" | "month"; options: ClubOption[] };
-type ClubsResponse = { clubs: Club[]; weekly: { firstBoxCutoff: string; firstWeeklyCharge: string; skippedFridays: string[] } };
+type ClubsResponse = {
+  clubs: Club[];
+  weekly: { firstBoxCutoff: string; firstWeeklyCharge: string; nextCookieFriday: string | null };
+  breaks: { start: string; end: string }[];
+};
 
 // "YYYY-MM-DD" calendar date (no time) -> "friday, october 16"
 function formatDate(ymd: string): string {
@@ -277,6 +281,13 @@ export default function ClubPage() {
           <div className="text-merrbakes-yellow text-lg font-bold lowercase tracking-wide">{copy.join.eyebrow}</div>
           <h2 className="text-4xl font-black mt-1 text-merrbakes-yellow">{copy.join.heading}</h2>
           <p className={`${prose} text-xl mt-3 font-semibold`}>{copy.join.perk}</p>
+          {/* Merr's current/next break (Notion calendar "Break"): no membership
+              charges or boxes during it */}
+          {joinData?.breaks?.[0] && (
+            <p className={`${prose} text-lg mt-4 font-semibold bg-white/15 border border-white/30 rounded-2xl px-5 py-3 max-w-3xl`}>
+              {copy.join.breakNote(formatDate(joinData.breaks[0].start), formatDate(joinData.breaks[0].end))}
+            </p>
+          )}
 
           {joinData === undefined ? (
             <div className="grid sm:grid-cols-4 gap-3 mt-8">
@@ -321,8 +332,8 @@ export default function ClubPage() {
                   ? copy.join.weeklyBilling(option.price, formatDay(joinData.weekly.firstBoxCutoff), formatDay(joinData.weekly.firstWeeklyCharge))
                   : copy.join.monthlyBilling(option.price)}
               </p>
-              {club.interval === "week" && joinData.weekly.skippedFridays[0] && (
-                <p className={`${prose} text-base mt-2 opacity-90 max-w-3xl`}>{copy.join.cookieWeekNote(formatDate(joinData.weekly.skippedFridays[0]))}</p>
+              {club.interval === "week" && joinData.weekly.nextCookieFriday && (
+                <p className={`${prose} text-base mt-2 opacity-90 max-w-3xl`}>{copy.join.cookieWeekNote(formatDate(joinData.weekly.nextCookieFriday))}</p>
               )}
               <div className="mt-4 max-w-xl">
                 <TipPicker

@@ -4,7 +4,7 @@ import { fetchVariantForCheckout } from '@/lib/notion';
 import { syncStripePrice } from '@/lib/reconcile';
 import { displayName } from '@/lib/shopItems';
 import { firstRecurringCharge } from '@/lib/billing';
-import { skippedFridays } from '@/lib/cookieWeek';
+import { skippedFridays } from '@/lib/chargeCalendar';
 import { parseTip, tipLineItem } from '@/lib/tips';
 import { cleanStreamName } from '@/lib/streamAlert';
 

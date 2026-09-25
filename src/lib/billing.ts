@@ -4,7 +4,7 @@
 // Signup pays for the first box up front (owner, round 4), so the recurring
 // Friday charges start one week after the first box's cutoff.
 // No Tweat charge (or box) on the Friday before cookie club week (owner, round
-// 7) — callers pass those Fridays as `skip` (see src/lib/cookieWeek.ts), and a
+// 7) — callers pass those Fridays as `skip` (see src/lib/chargeCalendar.ts), and a
 // first box that would land on one moves to the following Friday.
 const ZONE = 'America/Chicago';
 const BILLING_WEEKDAY = 5; // Friday (0 = Sunday)

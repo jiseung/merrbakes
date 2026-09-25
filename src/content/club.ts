@@ -77,6 +77,11 @@ export const clubCopy = {
     weeklyBilling: (price: string, box: string, weekly: string) =>
       `you'll pay ${price} today for your first box (finalized ${box}), then every friday at 6pm central starting ${weekly}. change your level any time before friday 6pm and that week's box follows it.`,
     monthlyBilling: (price: string) => `you'll pay ${price} today, then on the same date each month.`,
+    // {start}/{end} = Merr's current or next break (Notion calendar "Break")
+    breakNote: (start: string, end: string) =>
+      start === end
+        ? `🌙 merr's taking a break on ${start} — no membership charges or boxes that day. everything picks back up after.`
+        : `🌙 merr's taking a break ${start} – ${end} — no membership charges or boxes during it. everything picks back up after.`,
     // {date} = the next skipped Friday (the one before cookie club week)
     cookieWeekNote: (date: string) =>
       `no tweat box or charge the friday before cookie club week (next one: ${date}) — merr's busy baking cookie club boxes. if your box would land then, it moves to the following friday.`,

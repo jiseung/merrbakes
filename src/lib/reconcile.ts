@@ -2,7 +2,7 @@ import Stripe from 'stripe';
 import { SHOP_ITEMS_DB_ID, VARIANTS_DB_ID, FULFILLMENT_DB_ID, notionHeaders } from '@/lib/notion';
 import { stripe } from '@/lib/stripe';
 import { priceToCents, variantDisplayName, displayName } from '@/lib/shopItems';
-import { applyCookieWeekSkips } from '@/lib/tweatSkip';
+import { applyChargeSkips } from '@/lib/chargeSkips';
 
 // Keeps Shop Items / Shop Item Variants / Fulfillment / Stripe in sync with each
 // other, since none of these update automatically as new rows get added by hand
@@ -18,8 +18,8 @@ export type ReconcileReport = {
   stripePricesUpdated: { variant: string; oldPriceId: string; newPriceId: string; oldCents: number | null; newCents: number }[];
   flagged: string[];
   errors: string[];
-  // Tweat charges voided for the Friday before cookie club week (src/lib/tweatSkip.ts)
-  tweatChargesSkipped: string[];
+  // membership charges paused/unpaused for cookie club week or a break (src/lib/chargeSkips.ts)
+  chargesSkipped: string[];
 };
 
 export type ShopItemRow = {
@@ -238,7 +238,7 @@ export async function runReconcile(): Promise<ReconcileReport> {
     stripePricesUpdated: [],
     flagged: [],
     errors: [],
-    tweatChargesSkipped: [],
+    chargesSkipped: [],
   };
 
   const [shopItems, existingVariants, fulfillmentShopItemIds, stripePrices] = await Promise.all([
@@ -306,9 +306,9 @@ export async function runReconcile(): Promise<ReconcileReport> {
   }
 
   try {
-    report.tweatChargesSkipped = await applyCookieWeekSkips();
+    report.chargesSkipped = await applyChargeSkips();
   } catch (error) {
-    report.errors.push(`cookie club week skip: ${(error as Error).message}`);
+    report.errors.push(`charge skips (cookie club week / breaks): ${(error as Error).message}`);
   }
 
   return report;

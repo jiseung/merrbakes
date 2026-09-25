@@ -84,7 +84,7 @@ export default function AdminSyncPage() {
   const nothingChanged = report
     && report.stripePricesUpdated.length === 0 && report.stripePricesCreated.length === 0
     && report.variantsCreated.length === 0 && report.fulfillmentRowsCreated.length === 0
-    && report.defaultsFixed.length === 0 && (report.tweatChargesSkipped ?? []).length === 0;
+    && report.defaultsFixed.length === 0 && (report.chargesSkipped ?? []).length === 0;
 
   return (
     <main className="min-h-screen bg-merrbakes-pink text-merrbakes-brown font-hand">
@@ -131,7 +131,7 @@ export default function AdminSyncPage() {
             <Section title="Missing option rows created" items={report.variantsCreated} />
             <Section title="Fulfillment rows created" items={report.fulfillmentRowsCreated} />
             <Section title="Default option set" items={report.defaultsFixed} />
-            <Section title="Tweat charges skipped (cookie club week)" items={report.tweatChargesSkipped ?? []} />
+            <Section title="Membership charges skipped (cookie club week / breaks)" items={report.chargesSkipped ?? []} />
             <Section title="Needs a look in Notion" items={report.flagged} tone="warn" />
             <Section title="Couldn't sync" items={report.errors} tone="error" />
           </div>

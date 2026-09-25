@@ -3,7 +3,7 @@ import Stripe from 'stripe';
 import { stripe } from '@/lib/stripe';
 import { notionHeaders, createOrderLineItems } from '@/lib/notion';
 import { alertSummary, sendStreamAlert, streamName, cleanStreamName } from '@/lib/streamAlert';
-import { voidIfSkippedFriday } from '@/lib/tweatSkip';
+import { voidIfSkippedCharge } from '@/lib/chargeSkips';
 
 const ORDERS_DB_ID = process.env.NOTION_ORDERS_DB_ID;
 const ORDER_LINE_ITEMS_DB_ID = process.env.NOTION_ORDER_LINE_ITEMS_DB_ID;
@@ -75,13 +75,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'invalid signature' }, { status: 400 });
   }
 
-  // Friday 6pm Tweat charge just created (still a draft): cancel it if it's the
-  // Friday before cookie club week — how a blank "Cookie Club Monday" (the
-  // 3rd-Monday default) gets applied, at the moment of the charge
+  // membership renewal just created (still a draft): cancel it if its day is
+  // skipped — the Friday before cookie club week for Tweat (how a blank
+  // "Cookie Club Monday" default gets applied, at the moment of the charge), or
+  // any day in one of Merr's breaks (lib/chargeCalendar)
   if (event.type === 'invoice.created') {
     try {
-      const voided = await voidIfSkippedFriday(event.data.object as Stripe.Invoice);
-      return NextResponse.json({ ok: true, cookieWeekSkip: voided });
+      const voided = await voidIfSkippedCharge(event.data.object as Stripe.Invoice);
+      return NextResponse.json({ ok: true, chargeSkipped: voided });
     } catch (error) {
       console.log('stripe-webhook invoice.created error:', (error as Error).stack);
       return NextResponse.json({ error: 'internal error' }, { status: 500 });
