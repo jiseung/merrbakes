@@ -44,7 +44,10 @@ export async function GET() {
         proration_behavior: 'none',
         products,
       },
-      subscription_cancel: { enabled: true, mode: 'at_period_end' },
+      // no cancelling here (owner, 2026-09-25, option B): this portal signs in by
+      // email and would also show — and let them cancel — a Ko-fi subscription on
+      // a matching customer (same Stripe account). Members message Merr to cancel.
+      subscription_cancel: { enabled: false },
       payment_method_update: { enabled: true },
       customer_update: { enabled: true, allowed_updates: ['shipping', 'email'] },
       invoice_history: { enabled: true },

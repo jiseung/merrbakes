@@ -8,6 +8,7 @@ import { clubCopy } from '@/content/club';
 import { parseTip, tipLineItem } from '@/lib/tips';
 import { cleanStreamName } from '@/lib/streamAlert';
 import { siteOrigin } from '@/lib/siteOrigin';
+import { SITE_METADATA } from '@/lib/siteMarker';
 
 // Membership signup via Stripe Checkout (called from /club's join section).
 // Card payments only (owner: no bank payments).
@@ -52,6 +53,7 @@ export async function POST(req: NextRequest) {
     const origin = siteOrigin(req);
     // on-stream alert name, read back in /api/stripe-webhook (see lib/streamAlert)
     const metadata = {
+      ...SITE_METADATA,
       stream_name: cleanStreamName(streamName),
       tip_cents: tip ? String(tip.cents) : '',
       tip_note: tip?.note ?? '',
@@ -114,7 +116,7 @@ export async function POST(req: NextRequest) {
         ...(tip ? [tipLineItem(tip.cents)] : []),
       ],
       metadata,
-      subscription_data: { metadata: { notion_variant_id: variant.id } },
+      subscription_data: { metadata: { ...SITE_METADATA, notion_variant_id: variant.id } },
     });
     return NextResponse.json({ url: session.url });
   } catch (error) {

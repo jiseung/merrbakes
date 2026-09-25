@@ -83,7 +83,7 @@ export const clubCopy = {
     // shown above the pay button on Stripe's page for a weekly signup, which
     // charges only the first box; {price} = weekly price, {day} = first Friday charge
     weeklyCheckoutNote: (price: string, day: string) =>
-      `Today's charge is your first box. After that, your card is charged ${price} every Friday at 6pm Central, starting ${day}. Change your level or cancel any time from "Manage my membership" on merrbakes.com/club.`,
+      `Today's charge is your first box. After that, your card is charged ${price} every Friday at 6pm Central, starting ${day}. Change your level any time from "Manage my membership" on merrbakes.com/club. To cancel, just message Merr.`,
     monthlyBilling: (price: string) => `You'll pay ${price} today, then on the same date each month.`,
     // {start}/{end} = Merr's current or next break (Notion calendar "Break")
     breakNote: (start: string, end: string) =>
@@ -124,7 +124,7 @@ export const clubCopy = {
       { q: "how does shipping work?",
         a: "Boxes ship monthly (or weekly) within the US, packed with care. You'll get a tracking number so that you know when it'll arrive." },
       { q: "can i really cancel anytime?",
-        a: "Of course — if you joined here, use \"manage my membership\" on this page; if you joined on Ko-fi, manage it from your Ko-fi account. Or just contact Merr." },
+        a: "Of course — if you joined here, just message Merr and she'll cancel it for you. If you joined on Ko-fi, you can cancel from your Ko-fi account." },
       { q: "what if i have allergies?",
         a: "Everything's made in a home kitchen that also handles wheat, dairy, eggs, and nuts. If you'd like to request accommodations, message Merr to talk about options." },
       { q: "when am i billed?",

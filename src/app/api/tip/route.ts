@@ -3,6 +3,7 @@ import { stripe } from '@/lib/stripe';
 import { standaloneTipPrice } from '@/lib/tips';
 import { tipsCopy } from '@/content/tips';
 import { siteOrigin } from '@/lib/siteOrigin';
+import { SITE_METADATA } from '@/lib/siteMarker';
 
 // Standalone "tip merr" (footer link): straight to a Stripe checkout holding
 // only the tip — the buyer types the amount and can leave a note (visible in
@@ -31,7 +32,7 @@ export async function GET(req: NextRequest) {
           text: { maximum_length: 30 },
         },
       ],
-      metadata: { tip: 'standalone' },
+      metadata: { ...SITE_METADATA, tip: 'standalone' },
       success_url: `${origin}/order/{CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/`,
     });

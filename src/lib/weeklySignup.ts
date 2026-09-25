@@ -2,6 +2,7 @@ import Stripe from 'stripe';
 import { stripe } from '@/lib/stripe';
 import { firstRecurringCharge, nextBillingTime } from '@/lib/billing';
 import { skippedFridays } from '@/lib/chargeCalendar';
+import { SITE_METADATA } from '@/lib/siteMarker';
 
 // Weekly (Tweat of the Week) signup, step 2 of 2 (owner, 2026-09-25). Step 1 is
 // /api/subscribe: a payment-mode Checkout for just the first box that saves the
@@ -50,7 +51,7 @@ export async function startWeeklySubscription(session: Stripe.Checkout.Session):
     items: [{ price }],
     default_payment_method: paymentMethod,
     trial_end: trialEnd,
-    metadata: { notion_variant_id: session.metadata?.notion_variant_id ?? '', signup_session: session.id },
+    metadata: { ...SITE_METADATA, notion_variant_id: session.metadata?.notion_variant_id ?? '', signup_session: session.id },
   }, { idempotencyKey: `weekly-signup-${session.id}` });
   await stripe.paymentIntents.update(pi.id, { metadata: { subscription: sub.id } });
   return sub.id;

@@ -2,6 +2,7 @@ import Stripe from 'stripe';
 import { stripe } from '@/lib/stripe';
 import { chicagoDay } from '@/lib/billing';
 import { chargeCalendar, isSkippedCharge } from '@/lib/chargeCalendar';
+import { isOurInvoice, isOurSubscription } from '@/lib/siteMarker';
 
 // Skipping recurring charges on the days lib/chargeCalendar says don't charge
 // (cookie club week for Tweat; Merr's breaks for every membership). Pauses,
@@ -34,7 +35,8 @@ async function membershipSubscriptions(): Promise<Stripe.Subscription[]> {
   const subs: Stripe.Subscription[] = [];
   for (const status of ['active', 'trialing'] as const) {
     for await (const sub of stripe.subscriptions.list({ status, limit: 100 })) {
-      if (intervalOf(sub)) subs.push(sub);
+      // never Ko-fi's memberships (same Stripe account) — only the site's own
+      if (intervalOf(sub) && isOurSubscription(sub)) subs.push(sub);
     }
   }
   return subs;
@@ -77,7 +79,7 @@ export async function applyChargeSkips(now = new Date()): Promise<string[]> {
 // attempt), then void. Returns true if voided.
 export async function voidIfSkippedCharge(invoice: Stripe.Invoice): Promise<boolean> {
   if (invoice.status !== 'draft' || !invoice.id || invoice.billing_reason !== 'subscription_cycle') return false;
-  if (!invoice.parent?.subscription_details) return false;
+  if (!invoice.parent?.subscription_details || !isOurInvoice(invoice)) return false;
   const lines = await stripe.invoices.listLineItems(invoice.id, { limit: 100 });
   const intervals = await Promise.all(lines.data.map(async (line) => {
     const priceRef = line.pricing?.price_details?.price;

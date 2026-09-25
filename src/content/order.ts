@@ -25,7 +25,7 @@ export const orderCopy = {
     heading: "🎉 welcome to the club!",
     // {code} = the club week code
     perk: (code: string) => `Your member perk: free shipping on club week drops. When Merr posts the drop, use code "${code}" at checkout.`,
-    manage: "change or cancel your membership any time →",
+    manage: "manage your membership →",
   },
 
   notFound: {

@@ -5,6 +5,7 @@ import { notionHeaders, createOrderLineItems } from '@/lib/notion';
 import { alertSummary, sendStreamAlert, streamName, cleanStreamName } from '@/lib/streamAlert';
 import { voidIfSkippedCharge } from '@/lib/chargeSkips';
 import { isWeeklySignup, startWeeklySubscription } from '@/lib/weeklySignup';
+import { isOurInvoice, isOurSession } from '@/lib/siteMarker';
 
 const ORDERS_DB_ID = process.env.NOTION_ORDERS_DB_ID;
 const ORDER_LINE_ITEMS_DB_ID = process.env.NOTION_ORDER_LINE_ITEMS_DB_ID;
@@ -93,6 +94,14 @@ export async function POST(req: NextRequest) {
   // skipped — the Friday before cookie club week for Tweat (how a blank
   // "Cookie Club Monday" default gets applied, at the moment of the charge), or
   // any day in one of Merr's breaks (lib/chargeCalendar)
+  // Merr's Stripe account also runs all of Ko-fi's sales and memberships, and
+  // this endpoint hears the whole account — only ever act on what the site
+  // created (lib/siteMarker); Ko-fi's own webhook covers Ko-fi's side
+  if (event.type === 'invoice.created' || event.type === 'invoice.paid') {
+    if (!isOurInvoice(event.data.object as Stripe.Invoice)) {
+      return NextResponse.json({ ignored: true, reason: 'not a merrbakes.com subscription' });
+    }
+  }
   if (event.type === 'invoice.created') {
     try {
       const voided = await voidIfSkippedCharge(event.data.object as Stripe.Invoice);
@@ -115,6 +124,9 @@ export async function POST(req: NextRequest) {
 
   try {
     const session = event.data.object as Stripe.Checkout.Session;
+    if (!isOurSession(session)) {
+      return NextResponse.json({ ignored: true, reason: 'not a merrbakes.com checkout' });
+    }
     if (session.payment_status === 'unpaid') {
       return NextResponse.json({ ok: true, waitingForPayment: true });
     }

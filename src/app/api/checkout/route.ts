@@ -8,6 +8,7 @@ import { parseTip, tipLineItem } from '@/lib/tips';
 import { cleanStreamName } from '@/lib/streamAlert';
 import { cartCopy } from '@/content/cart';
 import { siteOrigin } from '@/lib/siteOrigin';
+import { SITE_METADATA } from '@/lib/siteMarker';
 
 const ORDERS_DB_ID = process.env.NOTION_ORDERS_DB_ID;
 
@@ -197,6 +198,7 @@ export async function POST(req: NextRequest) {
       // By" field — only set at all if the server-side eligibility check above
       // agreed the buyer is new, regardless of what the client sent.
       metadata: {
+        ...SITE_METADATA,
         referred_by: referralEligible ? trimmedReferral : '',
         // read back in /api/stripe-webhook into the Orders row's Gift fields
         gift: giftInput ? 'yes' : '',
