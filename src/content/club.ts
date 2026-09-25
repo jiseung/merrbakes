@@ -92,7 +92,7 @@ export const clubCopy = {
         : `🌙 Merr's taking a break ${start} – ${end} — everything picks back up after.`,
     // {date} = the next skipped Friday (the one before cookie club week)
     cookieWeekNote: (date: string) =>
-      `No tweat box charge the Friday before Cookie Club week (next one: ${date}) — Merr's busy baking cookie club boxes. if your box would land then, it moves to the following Friday.`,
+      `No tweat box charge the Friday before Cookie Club week (next one: ${date}) — Merr's busy baking cookie club boxes. If you don't want to miss out, you can subscribe to Cookie Club, Confectioner's Club, or Tasting Club.`,
     emailLabel: "your email",
     emailPlaceholder: "you@email.com",
     submitLabel: "join the club",
