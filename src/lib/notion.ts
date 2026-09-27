@@ -14,6 +14,25 @@ export function notionHeaders() {
   };
 }
 
+// Every row of a database. A single query returns at most 100 rows, and the
+// variants db is well past that.
+export async function queryAll(databaseId: string): Promise<any[]> {
+  const results: any[] = [];
+  let cursor: string | undefined;
+  do {
+    const res = await fetch(`https://api.notion.com/v1/databases/${databaseId}/query`, {
+      method: 'POST',
+      headers: notionHeaders(),
+      body: JSON.stringify(cursor ? { start_cursor: cursor } : {}),
+      cache: 'no-store',
+    });
+    const data = await res.json();
+    results.push(...(data.results ?? []));
+    cursor = data.has_more ? data.next_cursor : undefined;
+  } while (cursor);
+  return results;
+}
+
 // One row per purchased line (not per order) so a variant's "units ordered" can be
 // a real rollup sum, not just a count of orders that happened to include it. Orders
 // keeps its existing one-row-per-buyer shape untouched — this is an additive table

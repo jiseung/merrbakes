@@ -1,5 +1,5 @@
 import Stripe from 'stripe';
-import { SHOP_ITEMS_DB_ID, VARIANTS_DB_ID, FULFILLMENT_DB_ID, notionHeaders } from '@/lib/notion';
+import { SHOP_ITEMS_DB_ID, VARIANTS_DB_ID, FULFILLMENT_DB_ID, notionHeaders, queryAll } from '@/lib/notion';
 import { stripe } from '@/lib/stripe';
 import { priceToCents, variantDisplayName, displayName } from '@/lib/shopItems';
 import { applyChargeSkips } from '@/lib/chargeSkips';
@@ -41,23 +41,6 @@ export type VariantRow = {
   quantityMultiplier: number | null;
   stripePriceId: string;
 };
-
-async function queryAll(databaseId: string): Promise<any[]> {
-  const results: any[] = [];
-  let cursor: string | undefined;
-  do {
-    const res = await fetch(`https://api.notion.com/v1/databases/${databaseId}/query`, {
-      method: 'POST',
-      headers: notionHeaders(),
-      body: JSON.stringify(cursor ? { start_cursor: cursor } : {}),
-      cache: 'no-store',
-    });
-    const data = await res.json();
-    results.push(...(data.results ?? []));
-    cursor = data.has_more ? data.next_cursor : undefined;
-  } while (cursor);
-  return results;
-}
 
 async function fetchShopItems(): Promise<ShopItemRow[]> {
   const pages = await queryAll(SHOP_ITEMS_DB_ID);

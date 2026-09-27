@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { KofiAPIResponseType, KofiWebhookPayloadType } from '../types';
-import { SHOP_ITEMS_DB_ID, VARIANTS_DB_ID, notionHeaders, createOrderLineItems } from '@/lib/notion';
+import { SHOP_ITEMS_DB_ID, VARIANTS_DB_ID, notionHeaders, createOrderLineItems, queryAll } from '@/lib/notion';
 import { alertSummary, kofiStreamName, sendStreamAlert } from '@/lib/streamAlert';
 
 const ORDERS_DB_ID = process.env.NOTION_ORDERS_DB_ID;
@@ -23,15 +23,9 @@ async function resolveItemNames(): Promise<Map<string, string>> {
 // Shop Items rows, keyed by lowercased name, for resolving which item a Ko-fi
 // line item is (before picking a specific variant of it — see below).
 async function fetchShopItemIdsByName(): Promise<Map<string, string>> {
-  const res = await fetch(`https://api.notion.com/v1/databases/${SHOP_ITEMS_DB_ID}/query`, {
-    method: 'POST',
-    headers: notionHeaders(),
-    body: JSON.stringify({}),
-    cache: 'no-store',
-  });
-  const data = await res.json();
+  const pages = await queryAll(SHOP_ITEMS_DB_ID);
   const map = new Map<string, string>();
-  (data.results ?? []).forEach((page: any) => {
+  pages.forEach((page: any) => {
     const name = page.properties?.Name?.title?.map((t: any) => t.plain_text).join('') ?? '';
     if (name) map.set(name.toLowerCase(), page.id);
   });
@@ -44,15 +38,9 @@ type VariantInfo = { id: string; name: string; isDefault: boolean };
 // Orders `Items` relation points at variants, not items, so a Ko-fi line item
 // has to resolve down to a specific variant, not just its parent item.
 async function fetchVariantsByShopItemId(): Promise<Map<string, VariantInfo[]>> {
-  const res = await fetch(`https://api.notion.com/v1/databases/${VARIANTS_DB_ID}/query`, {
-    method: 'POST',
-    headers: notionHeaders(),
-    body: JSON.stringify({}),
-    cache: 'no-store',
-  });
-  const data = await res.json();
+  const pages = await queryAll(VARIANTS_DB_ID);
   const map = new Map<string, VariantInfo[]>();
-  (data.results ?? []).forEach((page: any) => {
+  pages.forEach((page: any) => {
     const shopItemId = page.properties?.['Shop Item']?.relation?.[0]?.id;
     if (!shopItemId) return;
     const name = page.properties?.['Variant Name']?.title?.map((t: any) => t.plain_text).join('') ?? '';
@@ -83,13 +71,12 @@ function pickVariant(variants: VariantInfo[], variationName: string | undefined)
 // product — so a Tasting payment resolves to *two* Shop Items, each getting its
 // own Order Line Item. A separate "Tasting Club" Shop Item still exists in Notion
 // (for its own record-keeping) but never gets a line item itself.
-// Keyed by keyword, not the item's exact display name — Notion's real "Confectioner's
-// Club" title uses a curly apostrophe (’), which would silently fail an exact
-// string match against a plain ' typed in source. Matching a plain substring like
-// "confection" sidesteps that, and is also more forgiving of tier_name's exact
-// wording, which Ko-fi hasn't sent us a real example of yet.
-const CLUB_ITEM_KEYWORDS = { cookie: 'cookie club', confectioner: 'confection' } as const;
-type ClubKind = keyof typeof CLUB_ITEM_KEYWORDS;
+// The Shop Item is matched by its exact title, not a substring: "cookie club" is
+// also inside "Cookie Club Member T-shirt", which is how a Tasting payment once
+// landed on the T-shirt. Apostrophes are normalized because Notion's real
+// "Confectioner’s Club" title uses a curly one.
+const CLUB_ITEM_TITLES = { cookie: 'Cookie Club', confectioner: 'Confectioner’s Club' } as const;
+type ClubKind = keyof typeof CLUB_ITEM_TITLES;
 
 function resolveClubKinds(tierName: string): ClubKind[] {
   const t = tierName.toLowerCase();
@@ -100,16 +87,15 @@ function resolveClubKinds(tierName: string): ClubKind[] {
   return kinds;
 }
 
-function findShopItemIdByKeyword(shopItemIdsByName: Map<string, string>, keyword: string): string | undefined {
+const normalizeTitle = (s: string) => s.replace(/[’‘]/g, "'").trim().toLowerCase();
+
+function findClubShopItemId(shopItemIdsByName: Map<string, string>, kind: ClubKind): string | undefined {
+  const wanted = normalizeTitle(CLUB_ITEM_TITLES[kind]);
   for (const [name, id] of shopItemIdsByName) {
-    if (name.includes(keyword)) return id;
+    if (normalizeTitle(name) === wanted) return id;
   }
   return undefined;
 }
-
-// display-only — matching against Notion uses CLUB_ITEM_KEYWORDS above instead,
-// specifically to avoid depending on getting this apostrophe right.
-const CLUB_ITEM_TITLES: Record<ClubKind, string> = { cookie: 'Cookie Club', confectioner: 'Confectioner’s Club' };
 
 async function orderAlreadyRecorded(transactionId: string): Promise<boolean> {
   const res = await fetch(`https://api.notion.com/v1/databases/${ORDERS_DB_ID}/query`, {
@@ -233,7 +219,7 @@ export async function POST(req: NextRequest) {
       const relationIds = new Set<string>();
       const lineItemsToRecord: { title: string; variantId: string; quantity: number }[] = [];
       clubKinds.forEach((kind) => {
-        const shopItemId = findShopItemIdByKeyword(shopItemIdsByName, CLUB_ITEM_KEYWORDS[kind]);
+        const shopItemId = findClubShopItemId(shopItemIdsByName, kind);
         const variant = shopItemId ? pickVariant(variantsByShopItemId.get(shopItemId) ?? [], undefined) : null;
         if (variant) {
           relationIds.add(variant.id);
