@@ -1,70 +1,107 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { KofiAPIResponseType, KofiWebhookPayloadType } from '../types';
+import { KofiWebhookPayloadType } from '../types';
 import { SHOP_ITEMS_DB_ID, VARIANTS_DB_ID, notionHeaders, createOrderLineItems, queryAll } from '@/lib/notion';
 import { alertSummary, kofiStreamName, sendStreamAlert } from '@/lib/streamAlert';
 
 const ORDERS_DB_ID = process.env.NOTION_ORDERS_DB_ID;
 const ORDER_LINE_ITEMS_DB_ID = process.env.NOTION_ORDER_LINE_ITEMS_DB_ID;
 
-// Resolves Ko-fi's opaque `direct_link_code` (item alias) to a display name,
-// the same way /api/kofi/route.ts strips "(pre-order)" off the raw item name.
-async function resolveItemNames(): Promise<Map<string, string>> {
-  const res = await fetch('https://ko-fi.com/shop/T6T4XU0H6/items/0/50?productType=0');
-  const data: KofiAPIResponseType[] = await res.json();
-  const map = new Map<string, string>();
-  data.forEach((item) => {
-    const preorderIndex = item.Name.toLowerCase().indexOf('(pre-order)');
-    const name = preorderIndex > -1 ? item.Name.substring(0, preorderIndex).trim() : item.Name;
-    map.set(item.Alias, name);
-  });
-  return map;
+const normalizeTitle = (s: string) => s.replace(/[’‘]/g, "'").trim().toLowerCase();
+
+// A Ko-fi Shop Order only names items by `direct_link_code` (the end of the
+// item's ko-fi.com/s/<code> link), never by title. Shop Items' "Ko-fi Code"
+// maps codes to items: entries separated by commas or new lines, each either
+// `code` or `code = Color` for merch where every colour is its own Ko-fi
+// listing (the Color must match the variants' Color select).
+type KofiCode = { code: string; color: string | null };
+type ShopItemInfo = { id: string; name: string; kofiCodes: KofiCode[] };
+
+function parseKofiCodes(text: string): KofiCode[] {
+  return text
+    .split(/[,\n]+/)
+    .map((entry) => {
+      const [rawCode, ...rest] = entry.split('=');
+      const code = rawCode.trim().replace(/^https?:\/\/(www\.)?ko-fi\.com\/s\//i, '').replace(/\/+$/, '').toLowerCase();
+      const color = rest.join('=').trim();
+      return { code, color: color || null };
+    })
+    .filter((c) => c.code);
 }
 
-// Shop Items rows, keyed by lowercased name, for resolving which item a Ko-fi
-// line item is (before picking a specific variant of it — see below).
-async function fetchShopItemIdsByName(): Promise<Map<string, string>> {
+async function fetchShopItems(): Promise<ShopItemInfo[]> {
   const pages = await queryAll(SHOP_ITEMS_DB_ID);
-  const map = new Map<string, string>();
-  pages.forEach((page: any) => {
-    const name = page.properties?.Name?.title?.map((t: any) => t.plain_text).join('') ?? '';
-    if (name) map.set(name.toLowerCase(), page.id);
-  });
-  return map;
+  return pages
+    .map((page: any) => ({
+      id: page.id,
+      name: page.properties?.Name?.title?.map((t: any) => t.plain_text).join('') ?? '',
+      kofiCodes: parseKofiCodes(page.properties?.['Ko-fi Code']?.rich_text?.map((t: any) => t.plain_text).join('') ?? ''),
+    }))
+    .filter((item) => item.name);
 }
 
-type VariantInfo = { id: string; name: string; isDefault: boolean };
+type VariantInfo = { id: string; shopItemId: string; name: string; color: string | null; size: string | null; isDefault: boolean };
 
-// Shop Item Variants rows, grouped by their parent Shop Item's page ID — the
-// Orders `Items` relation points at variants, not items, so a Ko-fi line item
-// has to resolve down to a specific variant, not just its parent item.
-async function fetchVariantsByShopItemId(): Promise<Map<string, VariantInfo[]>> {
+// Shop Item Variants rows — the Orders `Items` relation points at variants, not
+// items, so a Ko-fi line item has to resolve down to a specific variant.
+async function fetchVariants(): Promise<VariantInfo[]> {
   const pages = await queryAll(VARIANTS_DB_ID);
-  const map = new Map<string, VariantInfo[]>();
-  pages.forEach((page: any) => {
-    const shopItemId = page.properties?.['Shop Item']?.relation?.[0]?.id;
-    if (!shopItemId) return;
-    const name = page.properties?.['Variant Name']?.title?.map((t: any) => t.plain_text).join('') ?? '';
-    const isDefault = page.properties?.Default?.checkbox ?? false;
-    const list = map.get(shopItemId) ?? [];
-    list.push({ id: page.id, name, isDefault });
-    map.set(shopItemId, list);
-  });
-  return map;
+  return pages
+    .map((page: any) => ({
+      id: page.id,
+      shopItemId: page.properties?.['Shop Item']?.relation?.[0]?.id ?? '',
+      name: page.properties?.['Variant Name']?.title?.map((t: any) => t.plain_text).join('') ?? '',
+      color: page.properties?.Color?.select?.name ?? null,
+      size: page.properties?.Size?.select?.name ?? null,
+      isDefault: page.properties?.Default?.checkbox ?? false,
+    }))
+    .filter((v) => v.shopItemId);
 }
 
-// Picks the variant matching Ko-fi's variation_name (case-insensitive,
-// matched either direction since naming conventions may not align exactly),
-// falling back to the item's Default variant if no variation was given or
-// nothing matched. Untested against a real Ko-fi order — variation_name's
-// real-world format/values aren't confirmed yet.
+// Picks the variant matching Ko-fi's variation_name: an exact match on the
+// variant name, its Size, or the part after "Color — ", then a substring match
+// if only one variant has it. No variation → the Default variant. A variation
+// that matches nothing (or several) returns null rather than guessing, so a
+// wrong variant never lands in the Fulfillment counts; the order is still
+// recorded, just unmatched.
 function pickVariant(variants: VariantInfo[], variationName: string | undefined): VariantInfo | null {
   if (!variants.length) return null;
-  if (variationName) {
-    const needle = variationName.toLowerCase();
-    const match = variants.find((v) => v.name.toLowerCase().includes(needle) || needle.includes(v.name.toLowerCase()));
-    if (match) return match;
+  if (!variationName) return variants.find((v) => v.isDefault) ?? variants[0];
+  const needle = normalizeTitle(variationName);
+  const exact = variants.filter((v) => {
+    const name = normalizeTitle(v.name);
+    return name === needle || normalizeTitle(v.size ?? '') === needle || name.endsWith(` — ${needle}`);
+  });
+  if (exact.length === 1) return exact[0];
+  const loose = variants.filter((v) => normalizeTitle(v.name).includes(needle) || needle.includes(normalizeTitle(v.name)));
+  if (loose.length === 1) return loose[0];
+  return variants.length === 1 ? variants[0] : null;
+}
+
+// Ko-fi code → item (and colour) → variant. Without a code in Notion, falls
+// back to a variation_name that exactly names one variant across the whole shop.
+function resolveKofiItem(
+  item: { direct_link_code: string; variation_name: string },
+  shopItems: ShopItemInfo[],
+  variants: VariantInfo[]
+): { name: string; variant: VariantInfo | null } {
+  const code = item.direct_link_code.trim().toLowerCase();
+  for (const shopItem of shopItems) {
+    const entry = shopItem.kofiCodes.find((c) => c.code === code);
+    if (!entry) continue;
+    const candidates = variants.filter(
+      (v) => v.shopItemId === shopItem.id && (!entry.color || normalizeTitle(v.color ?? '') === normalizeTitle(entry.color))
+    );
+    return { name: entry.color ? `${shopItem.name} (${entry.color})` : shopItem.name, variant: pickVariant(candidates, item.variation_name) };
   }
-  return variants.find((v) => v.isDefault) ?? variants[0];
+  if (item.variation_name) {
+    const needle = normalizeTitle(item.variation_name);
+    const matches = variants.filter((v) => normalizeTitle(v.name) === needle);
+    if (matches.length === 1) {
+      const shopItem = shopItems.find((s) => s.id === matches[0].shopItemId);
+      if (shopItem) return { name: shopItem.name, variant: matches[0] };
+    }
+  }
+  return { name: `Ko-fi item ${item.direct_link_code}`, variant: null };
 }
 
 // Tasting Club is one Cookie Club box + one Confectioner's Club box, not its own
@@ -87,14 +124,9 @@ function resolveClubKinds(tierName: string): ClubKind[] {
   return kinds;
 }
 
-const normalizeTitle = (s: string) => s.replace(/[’‘]/g, "'").trim().toLowerCase();
-
-function findClubShopItemId(shopItemIdsByName: Map<string, string>, kind: ClubKind): string | undefined {
+function findClubShopItemId(shopItems: ShopItemInfo[], kind: ClubKind): string | undefined {
   const wanted = normalizeTitle(CLUB_ITEM_TITLES[kind]);
-  for (const [name, id] of shopItemIdsByName) {
-    if (normalizeTitle(name) === wanted) return id;
-  }
-  return undefined;
+  return shopItems.find((item) => normalizeTitle(item.name) === wanted)?.id;
 }
 
 async function orderAlreadyRecorded(transactionId: string): Promise<boolean> {
@@ -210,17 +242,14 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ ignored: true, reason: 'subscription event without a payment' });
       }
 
-      const [shopItemIdsByName, variantsByShopItemId] = await Promise.all([
-        fetchShopItemIdsByName(),
-        fetchVariantsByShopItemId(),
-      ]);
+      const [shopItems, variants] = await Promise.all([fetchShopItems(), fetchVariants()]);
 
       const clubKinds = resolveClubKinds(payload.tier_name ?? '');
       const relationIds = new Set<string>();
       const lineItemsToRecord: { title: string; variantId: string; quantity: number }[] = [];
       clubKinds.forEach((kind) => {
-        const shopItemId = findClubShopItemId(shopItemIdsByName, kind);
-        const variant = shopItemId ? pickVariant(variantsByShopItemId.get(shopItemId) ?? [], undefined) : null;
+        const shopItemId = findClubShopItemId(shopItems, kind);
+        const variant = shopItemId ? pickVariant(variants.filter((v) => v.shopItemId === shopItemId), undefined) : null;
         if (variant) {
           relationIds.add(variant.id);
           lineItemsToRecord.push({ title: CLUB_ITEM_TITLES[kind], variantId: variant.id, quantity: 1 });
@@ -262,27 +291,24 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ignored: true, type: payload.type });
     }
 
-    const [itemNamesByAlias, shopItemIdsByName, variantsByShopItemId] = await Promise.all([
-      resolveItemNames(),
-      fetchShopItemIdsByName(),
-      fetchVariantsByShopItemId(),
-    ]);
+    const [shopItems, variants] = await Promise.all([fetchShopItems(), fetchVariants()]);
 
     const items = payload.shop_items ?? [];
     const relationIds = new Set<string>();
     const lineItemsToRecord: { title: string; variantId: string; quantity: number }[] = [];
     const alertItemNames: string[] = [];
     const summaryLines = items.map((item) => {
-      const name = itemNamesByAlias.get(item.direct_link_code) ?? item.direct_link_code;
-      const shopItemId = shopItemIdsByName.get(name.toLowerCase());
-      const variant = shopItemId ? pickVariant(variantsByShopItemId.get(shopItemId) ?? [], item.variation_name) : null;
+      const { name, variant } = resolveKofiItem(item, shopItems, variants);
       const variation = item.variation_name ? ` (${item.variation_name})` : '';
       if (variant) {
         relationIds.add(variant.id);
         lineItemsToRecord.push({ title: `${name}${variation}`, variantId: variant.id, quantity: item.quantity });
+        alertItemNames.push(item.variation_name ? `${name} — ${item.variation_name}` : name);
+      } else {
+        // keep raw Ko-fi codes off the stream
+        alertItemNames.push('something from the shop');
       }
-      alertItemNames.push(item.variation_name ? `${name} — ${item.variation_name}` : name);
-      return `${item.quantity}x ${name}${variation}`;
+      return `${item.quantity}x ${name}${variation}${variant ? '' : ' (not matched)'}`;
     });
 
     const result = await createOrderRecord({
@@ -311,7 +337,7 @@ export async function POST(req: NextRequest) {
       summary: alertSummary(alertItemNames),
     });
 
-    return NextResponse.json({ ok: true, unmatchedItems: items.length - relationIds.size });
+    return NextResponse.json({ ok: true, unmatchedItems: items.length - lineItemsToRecord.length });
   } catch (error) {
     const err = error as Error;
     console.log('kofi-webhook error:', err.stack);
