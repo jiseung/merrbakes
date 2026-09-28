@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { revalidatePath } from "next/cache";
 import { SHOP_ITEMS_DB_ID, notionHeaders } from '@/lib/notion';
+import { ordersCloseAt } from '@/lib/shopItems';
 
 function handleCors(req: NextRequest) {
   const headers = new Headers();
@@ -15,8 +16,8 @@ export async function GET(req: NextRequest) {
   revalidatePath(req.url);
   const headers = handleCors(req);
   const hero = req.nextUrl.searchParams.get('hero') === 'true';
-  // special=true → the homepage's limited-time section: preorder items with "Limited special"
-  // ticked whose "Orders close" hasn't passed yet
+  // special=true → the limited-time banner (homepage + /shop): items with "Limited special"
+  // ticked and Hide unticked, each flagged `closed` once its "Orders close" has passed
   const special = req.nextUrl.searchParams.get('special') === 'true';
   // type=recurring pulls the membership rows (Cookie Club, Tasting Club, Confectioner's
   // Club); type=merch pulls physical merch (t-shirts, stickers, etc.); type=digital
@@ -35,13 +36,17 @@ export async function GET(req: NextRequest) {
     // currently sit in "In progress" (Notion's fulfillment-tracking status, not a
     // "not ready" flag) rather than "Preorders", so that filter doesn't apply to them.
     const typeFilter = { property: 'Type', select: { equals: type } };
-    const filter = type === 'Merrch'
-      ? typeFilter
-      : special
-        ? { and: [{ property: 'Status', status: { equals: 'Preorders' } }, { property: 'Limited special', checkbox: { equals: true } }] }
+    // limited specials live in their own banner (homepage + /shop), never in the grids
+    const notSpecial = { property: 'Limited special', checkbox: { equals: false } };
+    const filter = special
+      // any Status: after preorders close Merr may move it to "In progress", and it should
+      // still show as sold out until she ticks Hide
+      ? { and: [{ property: 'Limited special', checkbox: { equals: true } }, { property: 'Hide', checkbox: { equals: false } }] }
+      : type === 'Merrch'
+      ? { and: [typeFilter, notSpecial] }
       : hero
         ? { and: [{ property: 'Status', status: { equals: 'Preorders' } }, typeFilter, { property: 'Featured in hero', checkbox: { equals: true } }] }
-        : { and: [{ property: 'Status', status: { equals: 'Preorders' } }, typeFilter] };
+        : { and: [{ property: 'Status', status: { equals: 'Preorders' } }, typeFilter, notSpecial] };
 
     const externalResponse = await fetch(`https://api.notion.com/v1/databases/${SHOP_ITEMS_DB_ID}/query`, {
       method: 'POST',
@@ -66,7 +71,7 @@ export async function GET(req: NextRequest) {
         ordersClose: ordersCloseAt(props['Orders close']?.date?.start),
       };
     })
-      .filter((it: { ordersClose: string | null }) => !special || !it.ordersClose || Date.parse(it.ordersClose) > now);
+      .map((it: { ordersClose: string | null }) => ({ ...it, closed: !!it.ordersClose && Date.parse(it.ordersClose) <= now }));
 
     return new NextResponse(JSON.stringify({ data: items }), { headers });
   } catch (error) {
@@ -76,16 +81,3 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// "Orders close" as an exact moment (ISO). A plain date (no time) means orders stay
-// open through the end of that day in Merr's time zone (Central), not midnight UTC.
-function ordersCloseAt(start: string | undefined): string | null {
-  if (!start) return null;
-  if (start.includes('T')) return new Date(start).toISOString();
-  const [y, m, d] = start.split('-').map(Number);
-  const nextMidnightUtc = Date.UTC(y, m - 1, d + 1);
-  // Chicago's UTC offset on that date (CDT −5 / CST −6)
-  const tzName = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', timeZoneName: 'shortOffset' })
-    .formatToParts(new Date(nextMidnightUtc)).find((p) => p.type === 'timeZoneName')?.value ?? 'GMT-6';
-  const offsetHours = Number(tzName.replace('GMT', '')) || -6;
-  return new Date(nextMidnightUtc - offsetHours * 3600_000).toISOString();
-}

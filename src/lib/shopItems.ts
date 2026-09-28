@@ -11,6 +11,7 @@ export type DropItem = {
   tag?: string;
   limited?: boolean;
   ordersClose?: string | null; // ISO moment preorders close (Notion "Orders close"), if set
+  closed?: boolean; // limited specials: orders have closed (shown as sold out)
 };
 
 export type Variant = {
@@ -46,4 +47,19 @@ export function slugify(name: string): string {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
+}
+
+// "Orders close" as an exact moment (ISO), used by the shop API and by checkout
+// (which refuses closed items). A plain date (no time) means orders stay open
+// through the end of that day in Merr's time zone (Central), not midnight UTC.
+export function ordersCloseAt(start: string | undefined): string | null {
+  if (!start) return null;
+  if (start.includes("T")) return new Date(start).toISOString();
+  const [y, m, d] = start.split("-").map(Number);
+  const nextMidnightUtc = Date.UTC(y, m - 1, d + 1);
+  // Chicago's UTC offset on that date (CDT −5 / CST −6)
+  const tzName = new Intl.DateTimeFormat("en-US", { timeZone: "America/Chicago", timeZoneName: "shortOffset" })
+    .formatToParts(new Date(nextMidnightUtc)).find((p) => p.type === "timeZoneName")?.value ?? "GMT-6";
+  const offsetHours = Number(tzName.replace("GMT", "")) || -6;
+  return new Date(nextMidnightUtc - offsetHours * 3600_000).toISOString();
 }

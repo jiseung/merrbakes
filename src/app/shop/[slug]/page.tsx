@@ -34,12 +34,15 @@ export default function ProductPage({ params }: { params: Promise<{ slug: string
       fetch("/api/notion-shop", { cache: "no-store" }).then((res) => res.json()),
       fetch("/api/notion-shop?type=merch", { cache: "no-store" }).then((res) => res.json()),
       fetch("/api/notion-shop?type=digital", { cache: "no-store" }).then((res) => res.json()),
+      // limited specials aren't in the grids above, so they're fetched on their own
+      fetch("/api/notion-shop?special=true", { cache: "no-store" }).then((res) => res.json()),
     ])
-      .then(([single, merch, digital]) => {
+      .then(([single, merch, digital, special]) => {
         const singleItems = Array.isArray(single.data) ? single.data : [];
         const merchItems = Array.isArray(merch.data) ? merch.data : [];
         const digitalItems = Array.isArray(digital.data) ? digital.data : [];
-        setItems([...singleItems.map((it: DropItem) => ({ ...it, baked: true })), ...merchItems, ...digitalItems]);
+        const specialItems = Array.isArray(special.data) ? special.data : [];
+        setItems([...singleItems.map((it: DropItem) => ({ ...it, baked: true })), ...merchItems, ...digitalItems, ...specialItems]);
       })
       .catch(() => setItems([]));
   }, []);
@@ -83,9 +86,12 @@ export default function ProductPage({ params }: { params: Promise<{ slug: string
   // wired up for when there's more than one to switch between.
   const [activePhoto, setActivePhoto] = useState(0);
 
+  // limited special past its "Orders close": no ordering (checkout refuses it too)
+  const soldOut = !!item && (!!item.closed || (!!item.ordersClose && Date.parse(item.ordersClose) <= Date.now()));
+
   const [added, setAdded] = useState(false);
   function addToCart() {
-    if (!item || !selectedVariant) return;
+    if (!item || !selectedVariant || soldOut) return;
     add({
       variantId: selectedVariant.id,
       name: variantDisplayName(displayName(item.name), selectedVariant.name, itemVariants.length),
@@ -182,6 +188,11 @@ export default function ProductPage({ params }: { params: Promise<{ slug: string
                   </div>
                 )}
 
+                {soldOut ? (
+                  <div className="mt-7 inline-flex items-center rounded-full px-6 py-3 text-xl font-bold border-2 border-merrbakes-brown/30 text-merrbakes-brown/60">
+                    {copy.soldOutLabel}
+                  </div>
+                ) : (
                 <div className="mt-7 flex flex-col gap-2 items-start">
                   <button type="button" onClick={addToCart} disabled={!selectedVariant}
                           className={`${btnPrimary} disabled:opacity-60 disabled:cursor-wait ${variantsLoaded ? "" : "disabled:animate-pulse"}`}>
@@ -192,6 +203,7 @@ export default function ProductPage({ params }: { params: Promise<{ slug: string
                     {copy.kofiLink.label}
                   </a>
                 </div>
+                )}
               </div>
             </div>
 

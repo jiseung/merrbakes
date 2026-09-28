@@ -15,6 +15,7 @@ import { CalendarMonth } from "@/lib/calendar";
 import { formatMonth } from "@/lib/format";
 import { useCart } from "@/lib/cart";
 import StorefrontHeader from "@/components/StorefrontHeader";
+import SpecialBanner from "@/components/SpecialBanner";
 
 function ThroneIcon() {
   return <Image src="/throne.png" alt="Throne" width={32} height={27} className="object-contain" />;
@@ -98,7 +99,7 @@ export default function Home() {
       .catch(() => setMenuItems([]));
   }, []);
 
-  // limited-time special section — live from Notion (Limited special ticked, orders still open).
+  // limited-time special banner — live from Notion (Limited special ticked, Hide unticked).
   // Hidden while loading and when there's nothing, so it never flashes an empty band.
   const [specials, setSpecials] = useState<DropItem[]>([]);
   useEffect(() => {
@@ -107,7 +108,6 @@ export default function Home() {
       .then((d) => setSpecials(Array.isArray(d.data) ? d.data : []))
       .catch(() => {});
   }, []);
-  const [addedSpecial, setAddedSpecial] = useState<string | null>(null);
 
   // variants — needed so the menu grid's quick "add" button can add the right
   // priced SKU (an item's Default variant) instead of a flat item-level price.
@@ -122,18 +122,14 @@ export default function Home() {
       .finally(() => setVariantsLoaded(true));
   }, []);
 
-  function defaultVariant(item: DropItem) {
-    const itemVariants = variants.filter((v) => v.shopItemId === item.id);
-    return { variant: itemVariants.find((v) => v.isDefault) ?? itemVariants[0], count: itemVariants.length };
-  }
-
   function addDefaultVariant(item: DropItem) {
-    if (!item.id) return;
-    const { variant, count } = defaultVariant(item);
+    if (!item.id) return false;
+    const itemVariants = variants.filter((v) => v.shopItemId === item.id);
+    const variant = itemVariants.find((v) => v.isDefault) ?? itemVariants[0];
     if (!variant) return false;
     add({
       variantId: variant.id,
-      name: variantDisplayName(displayName(item.name), variant.name, count),
+      name: variantDisplayName(displayName(item.name), variant.name, itemVariants.length),
       slug: slugify(item.name),
       price: variant.price,
       priceCents: priceToCents(variant.price),
@@ -321,64 +317,8 @@ export default function Home() {
         </div>
       </section>
 
-      {/* LIMITED-TIME SPECIAL */}
-      {specials.length > 0 && (
-        <section id="special" className="bg-merrbakes-brown text-merrbakes-pink">
-          <div className="max-w-6xl mx-auto px-5 py-14 flex flex-col gap-14">
-            {specials.map((it) => {
-              const { variant } = defaultVariant(it);
-              const price = variant?.price ?? it.price;
-              const closes = it.ordersClose ? new Date(it.ordersClose) : null;
-              const daysLeft = closes ? Math.ceil((closes.getTime() - Date.now()) / 86_400_000) : null;
-              return (
-                <div key={it.id ?? it.name} className="grid md:grid-cols-2 gap-10 items-center">
-                  <Link href={`/shop/${slugify(it.name)}`}
-                        className="block bg-white rounded-3xl p-4 border border-merrbakes-brown/15 shadow-xl hover:shadow-2xl transition max-w-md w-full mx-auto"
-                        style={{ transform: "rotate(-2deg)" }}>
-                    <div className="aspect-square rounded-2xl relative overflow-hidden" style={it.photoUrl ? undefined : { background: plates[it.plate ?? "butter"] }}>
-                      {it.photoUrl
-                        ? <Image src={it.photoUrl} alt={it.name} fill sizes="(max-width: 768px) 90vw, 450px" className="object-cover" />
-                        : <div className="absolute inset-0 grid place-items-center text-7xl">{it.icon ?? "🎃"}</div>}
-                    </div>
-                  </Link>
-                  <div>
-                    <div className="flex flex-wrap gap-2 text-base font-bold">
-                      <span className="bg-merrbakes-yellow text-merrbakes-brown rounded-full px-3 py-1">{copy.special.eyebrow}</span>
-                      {daysLeft !== null && daysLeft <= 7 && (
-                        <span className="bg-merrbakes-berry text-white rounded-full px-3 py-1">
-                          {daysLeft <= 1 ? copy.special.lastDay : `${daysLeft} ${copy.special.daysLeftSuffix}`}
-                        </span>
-                      )}
-                    </div>
-                    <h2 className="text-5xl font-black mt-4 text-merrbakes-yellow text-balance">{displayName(it.name)}</h2>
-                    {it.description && (
-                      <p className={`${prose} text-lg text-merrbakes-pink/85 mt-4 whitespace-pre-line`}>{it.description}</p>
-                    )}
-                    {closes && (
-                      <p className="text-xl font-bold mt-4">
-                        {copy.special.closesPrefix}{" "}
-                        {closes.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "America/Chicago" }).toLowerCase()}
-                      </p>
-                    )}
-                    <div className="flex flex-wrap items-center gap-5 mt-6">
-                      <span className="text-4xl font-black text-merrbakes-yellow">{price}</span>
-                      <button type="button"
-                              onClick={() => { if (addDefaultVariant(it)) { setAddedSpecial(it.name); setTimeout(() => setAddedSpecial(null), 1500); } }}
-                              disabled={!variant}
-                              className={`${btnPrimary} disabled:opacity-60 ${variantsLoaded ? "disabled:cursor-not-allowed" : "disabled:animate-pulse disabled:cursor-wait"}`}>
-                        {addedSpecial === it.name ? copy.special.addedButtonLabel : copy.special.addButtonLabel}
-                      </button>
-                      <Link href={`/shop/${slugify(it.name)}`} className="text-xl font-bold underline decoration-merrbakes-yellow decoration-4 hover:text-merrbakes-yellow">
-                        {copy.special.detailsLabel}
-                      </Link>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </section>
-      )}
+      {/* LIMITED-TIME SPECIAL — open specials only; sold-out ones stay on /shop until hidden */}
+      <SpecialBanner items={specials.filter((it) => !it.closed)} variants={variants} variantsLoaded={variantsLoaded} onAdd={addDefaultVariant} />
 
       {/* MENU */}
       <section id="menu" className="bg-white/70 border-y border-merrbakes-brown/15">

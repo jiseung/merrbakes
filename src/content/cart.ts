@@ -53,5 +53,6 @@ export const cartCopy = {
     unavailable: "One of the items in your cart is no longer available.",
     membershipInCart: "Memberships sign up on their own page, not through the cart.",
     pricesUpdating: "Prices are being updated — please try again in a minute.",
+    ordersClosed: (name: string) => `Preorders for ${name} have closed — please remove it from your cart.`,
   },
 };

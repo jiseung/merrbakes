@@ -123,6 +123,10 @@ export async function POST(req: NextRequest) {
       if (variant.shopItemType === 'Recurring') {
         return NextResponse.json({ error: cartCopy.errors.membershipInCart }, { status: 400 });
       }
+      // limited specials stop taking orders at "Orders close", even if still in someone's cart
+      if (variant.ordersClose && Date.parse(variant.ordersClose) <= Date.now()) {
+        return NextResponse.json({ error: cartCopy.errors.ordersClosed(displayName(variant.shopItemName)) }, { status: 409 });
+      }
       // Safety net for Notion edits the sync hasn't picked up yet: make sure the
       // Stripe Price matches Notion's current price (creating/replacing it if not)
       // before charging it, so a customer is never charged a stale price.

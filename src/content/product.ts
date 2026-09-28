@@ -19,6 +19,8 @@ export const productCopy = {
 
   addButtonLabel: "add to cart",
   addedButtonLabel: "added to cart ✓",
+  // limited specials after their "Orders close" date
+  soldOutLabel: "sold out — preorders closed",
 
   kofiLink: {
     label: "or order on ko-fi →",

@@ -12,6 +12,7 @@ import { CalendarMonth } from "@/lib/calendar";
 import { formatMonth } from "@/lib/format";
 import { useCart } from "@/lib/cart";
 import StorefrontHeader from "@/components/StorefrontHeader";
+import SpecialBanner from "@/components/SpecialBanner";
 
 const plates: Record<Plate, string> = {
   choc: "radial-gradient(circle at 32% 28%,#c98a5e,transparent 55%),linear-gradient(140deg,#6b4429,#4a2c17)",
@@ -79,6 +80,16 @@ export default function ShopPage() {
       .then((res) => res.json())
       .then((d) => setMenuItems(Array.isArray(d.data) ? d.data : []))
       .catch(() => setMenuItems([]));
+  }, []);
+
+  // limited-time specials — their own banner above the menu (never in the grids). Shown
+  // as sold out after "Orders close" until Merr ticks Hide in Notion.
+  const [specials, setSpecials] = useState<DropItem[]>([]);
+  useEffect(() => {
+    fetch("/api/notion-shop?special=true", { cache: "no-store" })
+      .then((res) => res.json())
+      .then((d) => { if (Array.isArray(d.data)) setSpecials(d.data); })
+      .catch(() => {});
   }, []);
 
   // variants — needed so the grid's quick "add" button can add the right priced
@@ -179,10 +190,10 @@ export default function ShopPage() {
   }, [sortedMenuItems, showAllItems, onScheduleIds, showCalendar]);
 
   function addDefaultVariant(item: DropItem) {
-    if (!item.id) return;
+    if (!item.id) return false;
     const itemVariants = variants.filter((v) => v.shopItemId === item.id);
     const variant = itemVariants.find((v) => v.isDefault) ?? itemVariants[0];
-    if (!variant) return;
+    if (!variant) return false;
     add({
       variantId: variant.id,
       name: variantDisplayName(displayName(item.name), variant.name, itemVariants.length),
@@ -193,6 +204,7 @@ export default function ShopPage() {
       icon: item.icon,
       plate: item.plate,
     });
+    return true;
   }
 
   // custom order request — a simple form that writes to the "merrbakes.com
@@ -225,6 +237,9 @@ export default function ShopPage() {
     <main className="min-h-screen bg-merrbakes-pink text-merrbakes-brown font-hand">
       {/* NAV — identical to option16 */}
       <StorefrontHeader logoHref={HOME} ctaHref="/club" resolveHref={home} />
+
+      {/* LIMITED-TIME SPECIAL */}
+      <SpecialBanner items={specials} variants={variants} variantsLoaded={variantsLoaded} onAdd={addDefaultVariant} />
 
       {/* MENU */}
       <section className="max-w-6xl mx-auto px-5 py-16">

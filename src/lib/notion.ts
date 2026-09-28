@@ -1,3 +1,4 @@
+import { ordersCloseAt } from '@/lib/shopItems';
 export const NOTION_VERSION = '2022-06-28';
 export const SHOP_ITEMS_DB_ID = '3cb75009-8304-808e-bb4a-cc8156af562e';
 export const VARIANTS_DB_ID = '3cb75009-8304-80f4-b28b-f9ee459e06f2';
@@ -108,6 +109,7 @@ export async function fetchVariantForCheckout(variantId: string): Promise<{
   shopItemType: string;
   shippingUS: number;
   additionalItemShippingUS: number;
+  ordersClose: string | null; // ISO; set on limited specials — checkout refuses the item after it
 } | null> {
   const variantRes = await fetch(`https://api.notion.com/v1/pages/${variantId}`, {
     headers: notionHeaders(),
@@ -141,5 +143,6 @@ export async function fetchVariantForCheckout(variantId: string): Promise<{
     shopItemType: shopItemPage.properties?.Type?.select?.name ?? '',
     shippingUS: parseDollarAmount(shopItemPage.properties?.['Shipping (US)']?.rich_text),
     additionalItemShippingUS: parseDollarAmount(shopItemPage.properties?.['Additional Item Shipping (US)']?.rich_text),
+    ordersClose: ordersCloseAt(shopItemPage.properties?.['Orders close']?.date?.start),
   };
 }
