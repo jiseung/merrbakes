@@ -7,5 +7,6 @@ export const specialCopy = {
   soldOut: "sold out",
   closedPrefix: "preorders closed",
   addButtonLabel: "add to cart",
+  compactAddButtonLabel: "preorder now", // /shop's banner (mint green button)
   addedButtonLabel: "added ✓",
 };

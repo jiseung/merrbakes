@@ -85,8 +85,8 @@ export default function SpecialBanner({ items, variants, variantsLoaded, onAdd, 
                 <button type="button"
                         onClick={() => { if (onAdd(it)) { setAdded(it.name); setTimeout(() => setAdded(null), 1500); } }}
                         disabled={!variant}
-                        className={`${btnPrimary} ${compact ? "!px-5 !py-2 !text-lg" : ""} disabled:opacity-60 ${variantsLoaded ? "disabled:cursor-not-allowed" : "disabled:animate-pulse disabled:cursor-wait"}`}>
-                  {added === it.name ? copy.addedButtonLabel : copy.addButtonLabel}
+                        className={`${btnPrimary} ${compact ? "!px-5 !py-2 !text-lg !bg-merrbakes-green !text-merrbakes-brown" : ""} disabled:opacity-60 ${variantsLoaded ? "disabled:cursor-not-allowed" : "disabled:animate-pulse disabled:cursor-wait"}`}>
+                  {added === it.name ? copy.addedButtonLabel : compact ? copy.compactAddButtonLabel : copy.addButtonLabel}
                 </button>
               )}
             </div>
