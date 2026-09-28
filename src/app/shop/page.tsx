@@ -239,7 +239,7 @@ export default function ShopPage() {
       <StorefrontHeader logoHref={HOME} ctaHref="/club" resolveHref={home} />
 
       {/* LIMITED-TIME SPECIAL */}
-      <SpecialBanner items={specials} variants={variants} variantsLoaded={variantsLoaded} onAdd={addDefaultVariant} />
+      <SpecialBanner compact items={specials} variants={variants} variantsLoaded={variantsLoaded} onAdd={addDefaultVariant} />
 
       {/* MENU */}
       <section className="max-w-6xl mx-auto px-5 py-16">
