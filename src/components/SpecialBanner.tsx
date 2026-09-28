@@ -117,7 +117,6 @@ export default function SpecialBanner({ items, variants, variantsLoaded, onAdd, 
 
           return (
             <div key={it.id ?? it.name}>
-              {clockRow && <div className="mb-8">{clockRow}</div>}
               <div className="grid md:grid-cols-2 gap-10 items-center">
                 <Link href={href}
                       className="block bg-white rounded-3xl p-4 border border-merrbakes-brown/15 shadow-xl hover:shadow-2xl transition max-w-md w-full mx-auto"
@@ -125,7 +124,10 @@ export default function SpecialBanner({ items, variants, variantsLoaded, onAdd, 
                   <div className="aspect-square rounded-2xl relative overflow-hidden bg-merrbakes-yellow">{photo}</div>
                 </Link>
                 <div>
-                  <div className="flex flex-wrap gap-2">{pill}</div>
+                  <div className="flex flex-wrap items-center gap-3">
+                    {pill}
+                    {clockRow}
+                  </div>
                   <h2 className="text-5xl font-black mt-4 text-merrbakes-yellow text-balance">{displayName(it.name)}</h2>
                   {it.description && (
                     <p className={`${prose} text-lg text-merrbakes-pink/85 mt-4 whitespace-pre-line`}>{it.description}</p>
