@@ -37,7 +37,7 @@ export default function SpecialBanner({ items, variants, variantsLoaded, onAdd, 
 
   return (
     <section id="special" className="bg-merrbakes-brown text-merrbakes-pink">
-      <div className={`max-w-6xl mx-auto px-5 flex flex-col ${compact ? "py-4 gap-4" : "py-14 gap-14"}`}>
+      <div className={`max-w-6xl mx-auto px-5 flex flex-col ${compact ? "py-4 gap-4 md:px-12" : "py-14 gap-14"}`}>
         {items.map((it) => {
           const itemVariants = variants.filter((v) => v.shopItemId === it.id);
           const variant = itemVariants.find((v) => v.isDefault) ?? itemVariants[0];
@@ -49,11 +49,16 @@ export default function SpecialBanner({ items, variants, variantsLoaded, onAdd, 
             .toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "America/Chicago" }).toLowerCase();
           const href = `/shop/${slugify(it.name)}`;
 
-          // countdown only (no label text around it); after close, the closed date instead
+          // countdown + "left"; after close, the closed date instead
           const clockRow = closes && (
             soldOut
               ? <span className={`${compact ? "text-lg" : "text-xl"} font-bold`}>{copy.closedPrefix} {closesLabel}</span>
-              : <Countdown ms={closes.getTime() - now} small={compact} />
+              : (
+                <div className="flex items-center gap-2.5">
+                  <Countdown ms={closes.getTime() - now} small={compact} />
+                  <span className={`${compact ? "text-lg" : "text-xl"} font-bold`}>{copy.countdownSuffix}</span>
+                </div>
+              )
           );
 
           const photo = (

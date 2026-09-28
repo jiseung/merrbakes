@@ -2,6 +2,7 @@
 // and the top of /shop). Shows Shop Items with "Limited special" ticked in Notion.
 export const specialCopy = {
   eyebrow: "limited time only",
+  countdownSuffix: "left", // after the countdown boxes
   countdownUnits: { days: "days", hours: "hrs", minutes: "min", seconds: "sec" },
   soldOut: "sold out",
   closedPrefix: "preorders closed",
