@@ -103,9 +103,9 @@ export default function SpecialBanner({ items, variants, variantsLoaded, onAdd, 
                 <div className="min-w-0 flex-1 flex flex-col gap-1.5">
                   <div className="flex flex-wrap items-center gap-3">
                     {pill}
-                    <Link href={href} className="text-3xl font-black text-merrbakes-yellow leading-tight hover:underline">{displayName(it.name)}</Link>
+                    {clockRow}
                   </div>
-                  {clockRow}
+                  <Link href={href} className="text-3xl font-black text-merrbakes-yellow leading-tight hover:underline">{displayName(it.name)}</Link>
                 </div>
                 <div className="shrink-0 flex items-center gap-5">
                   {buy}
