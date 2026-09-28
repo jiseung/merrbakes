@@ -10,6 +10,7 @@ export type DropItem = {
   plate?: Plate;
   tag?: string;
   limited?: boolean;
+  ordersClose?: string | null; // ISO moment preorders close (Notion "Orders close"), if set
 };
 
 export type Variant = {

@@ -57,6 +57,17 @@ export const option16Copy = {
     ],
   },
 
+  // limited-time special (between about and menu) — shows Shop Items with "Limited special" ticked
+  special: {
+    eyebrow: "🎃 limited time only",
+    closesPrefix: "preorders close",
+    lastDay: "last day to order!",
+    daysLeftSuffix: "days left",
+    addButtonLabel: "add to cart",
+    addedButtonLabel: "added ✓",
+    detailsLabel: "details →",
+  },
+
   menu: {
     heading: "✿ check out the menu",
     shopButtonLabel: "visit the shop →",
