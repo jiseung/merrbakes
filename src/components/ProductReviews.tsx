@@ -3,19 +3,19 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import { productCopy as copy } from "@/content/product";
 
-// Reviews section for /shop/[slug]. Fields mirror the planned Notion reviews
-// database: customer name, text, optional photo. No star ratings (owner, 2026-09-25).
+// Reviews section for /shop/[slug], fed by /api/notion-reviews (Notion's
+// "merrbakes.com shop item reviews" db): customer name, text, optional photo.
+// No star ratings (owner, 2026-09-25).
 export type Review = {
   name: string;
   date: string; // YYYY-MM-DD
   text: string;
   photoUrl?: string | null;
-  usePhoto?: boolean; // mockup only: show the product's own photo as the review photo
 };
 
 const prose = "font-sans";
 
-export default function ProductReviews({ reviews, fallbackPhotoUrl }: { reviews: Review[]; fallbackPhotoUrl?: string | null }) {
+export default function ProductReviews({ reviews }: { reviews: Review[] }) {
   // enlarged review photo (lightbox); closes on backdrop click, ✕ or Escape
   const [enlarged, setEnlarged] = useState<{ src: string; alt: string } | null>(null);
   useEffect(() => {
@@ -38,7 +38,7 @@ export default function ProductReviews({ reviews, fallbackPhotoUrl }: { reviews:
 
       <div className="grid md:grid-cols-2 gap-5 mt-6">
         {reviews.map((r, i) => {
-          const photo = r.photoUrl ?? (r.usePhoto ? fallbackPhotoUrl : null);
+          const photo = r.photoUrl;
           const name = r.name.trim() || copy.reviews.anonymousName;
           return (
             <article key={i} className="bg-white rounded-3xl border border-merrbakes-brown/15 p-5 flex gap-4">

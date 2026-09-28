@@ -5,6 +5,7 @@ export const MONTHLY_MENUS_DB_ID = '3cc75009-8304-805f-a26b-f57ae34148c8';
 export const STREAM_CALENDAR_DB_ID = '3cd75009-8304-80e8-8cd2-c6b92b340119';
 export const FULFILLMENT_DB_ID = '3cf75009-8304-80b5-baab-f76317b77432';
 export const CONTACT_QUERIES_DB_ID = '3d075009-8304-80c4-adfb-c6a06d4e9827';
+export const REVIEWS_DB_ID = '3cb75009-8304-8093-ad75-d7db7f768892';
 
 export function notionHeaders() {
   return {

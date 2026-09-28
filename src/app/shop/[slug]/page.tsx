@@ -10,11 +10,7 @@ import { productCopy as copy } from "@/content/product";
 import { DropItem, Variant, displayName, slugify, priceToCents, variantDisplayName } from "@/lib/shopItems";
 import { useCart } from "@/lib/cart";
 import StorefrontHeader from "@/components/StorefrontHeader";
-import ProductReviews from "@/components/ProductReviews";
-import { sampleReviews } from "@/content/sampleReviews";
-
-// mockup: sample reviews on every product page, local dev only — never on the live site
-const showSampleReviews = process.env.NODE_ENV !== "production";
+import ProductReviews, { Review } from "@/components/ProductReviews";
 
 const prose = "font-sans";
 const btnPrimary =
@@ -60,6 +56,16 @@ export default function ProductPage({ params }: { params: Promise<{ slug: string
   }, []);
 
   const item = items?.find((it) => slugify(it.name) === slug) ?? null;
+
+  // reviews from Notion, linked to this item; the section stays hidden until there's at least one
+  const [reviews, setReviews] = useState<Review[]>([]);
+  useEffect(() => {
+    if (!item) return;
+    fetch(`/api/notion-reviews?item=${item.id}`, { cache: "no-store" })
+      .then((res) => res.json())
+      .then((d) => { if (Array.isArray(d.data)) setReviews(d.data); })
+      .catch(() => {});
+  }, [item?.id]);
   const itemVariants = item
     ? allVariants.filter((v) => v.shopItemId === item.id).sort((a, b) => priceToCents(a.price) - priceToCents(b.price))
     : [];
@@ -189,7 +195,7 @@ export default function ProductPage({ params }: { params: Promise<{ slug: string
               </div>
             </div>
 
-            {showSampleReviews && <ProductReviews reviews={sampleReviews} fallbackPhotoUrl={item.photoUrl} />}
+            <ProductReviews reviews={reviews} />
           </>
         )}
       </div>
