@@ -14,13 +14,12 @@ const btnPrimary =
 // (no add button) until Merr ticks Hide. Checkout refuses it after close too.
 // Full layout on the homepage; `compact` on /shop (one row, no description, ≤20vh).
 // Mockup aid: ?special=soldout (local dev only) previews the sold-out state.
-export default function SpecialBanner({ items, variants, variantsLoaded, onAdd, compact = false, clockStyle = "tiles" }: {
+export default function SpecialBanner({ items, variants, variantsLoaded, onAdd, compact = false }: {
   items: DropItem[];
   variants: Variant[];
   variantsLoaded: boolean;
   onAdd: (item: DropItem) => boolean | void;
   compact?: boolean;
-  clockStyle?: ClockStyle;
 }) {
   // ticks every second for the countdown; also flips an item to sold out the moment it closes
   const [now, setNow] = useState(() => Date.now());
@@ -50,18 +49,11 @@ export default function SpecialBanner({ items, variants, variantsLoaded, onAdd, 
             .toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "America/Chicago" }).toLowerCase();
           const href = `/shop/${slugify(it.name)}`;
 
+          // countdown only (no label text around it); after close, the closed date instead
           const clockRow = closes && (
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-              {soldOut ? (
-                <span className={`${compact ? "text-lg" : "text-xl"} font-bold`}>{copy.closedPrefix} {closesLabel}</span>
-              ) : (
-                <>
-                  <span className={`${compact ? "text-lg" : "text-xl"} font-bold`}>{copy.countdownLabel}</span>
-                  <Countdown ms={closes.getTime() - now} style={clockStyle} small={compact} />
-                  <span className={`${prose} text-sm text-merrbakes-pink/70`}>{copy.closesPrefix} {closesLabel}</span>
-                </>
-              )}
-            </div>
+            soldOut
+              ? <span className={`${compact ? "text-lg" : "text-xl"} font-bold`}>{copy.closedPrefix} {closesLabel}</span>
+              : <Countdown ms={closes.getTime() - now} small={compact} />
           );
 
           const photo = (
@@ -115,7 +107,10 @@ export default function SpecialBanner({ items, variants, variantsLoaded, onAdd, 
                   </div>
                   {clockRow}
                 </div>
-                <div className="shrink-0">{buy}</div>
+                <div className="shrink-0 flex items-center gap-5">
+                  {buy}
+                  <Link href={href} className="text-lg font-bold underline decoration-merrbakes-yellow decoration-4 hover:text-merrbakes-yellow">{copy.detailsLabel}</Link>
+                </div>
               </div>
             );
           }
@@ -146,72 +141,25 @@ export default function SpecialBanner({ items, variants, variantsLoaded, onAdd, 
   );
 }
 
-// Countdown styles (owner is choosing; preview them all at /mockups/countdown in local dev).
-export type ClockStyle = "tiles" | "text" | "flip" | "pill" | "outline";
-export const clockStyles: ClockStyle[] = ["tiles", "text", "flip", "pill", "outline"];
-
-export function Countdown({ ms, style = "tiles", small = false }: { ms: number; style?: ClockStyle; small?: boolean }) {
+// days : hrs : min : sec as dark clock digits, each unit labelled inside its box
+function Countdown({ ms, small = false }: { ms: number; small?: boolean }) {
   const total = Math.max(0, Math.floor(ms / 1000));
-  const d = Math.floor(total / 86400), h = Math.floor((total % 86400) / 3600), m = Math.floor((total % 3600) / 60), s = total % 60;
-  const pad = (n: number) => String(n).padStart(2, "0");
   const u = copy.countdownUnits;
-  const parts: [number, string][] = [[d, u.days], [h, u.hours], [m, u.minutes], [s, u.seconds]];
-  const num = small ? "text-xl" : "text-2xl";
-
-  if (style === "text") {
-    // plain numbers in the headline yellow, no boxes
-    return (
-      <div role="timer" className={`${small ? "text-2xl" : "text-3xl"} font-black text-merrbakes-yellow tabular-nums`}>
-        {parts.map(([n, unit]) => (
-          <span key={unit} className="mr-2.5">{pad(n)}<span className="text-base font-bold text-merrbakes-pink/80 ml-0.5">{unit[0]}</span></span>
-        ))}
-      </div>
-    );
-  }
-  if (style === "flip") {
-    // dark clock digits with colons, tiny labels underneath
-    return (
-      <div role="timer" className="flex items-start gap-1">
-        {parts.map(([n, unit], i) => (
-          <div key={unit} className="flex items-start gap-1">
-            {i > 0 && <span className={`${num} font-black text-merrbakes-yellow/70 leading-9`}>:</span>}
-            <div className="flex flex-col items-center">
-              <span className={`bg-black/30 text-merrbakes-yellow rounded-lg px-2 ${num} font-black tabular-nums leading-9`}>{pad(n)}</span>
-              <span className="text-xs font-bold text-merrbakes-pink/70 mt-0.5">{unit}</span>
-            </div>
-          </div>
-        ))}
-      </div>
-    );
-  }
-  if (style === "pill") {
-    // one berry badge: "17 days 09:54:45"
-    return (
-      <span role="timer" className={`inline-flex items-center gap-2 bg-merrbakes-berry text-white rounded-full px-4 py-1 ${small ? "text-lg" : "text-xl"} font-black tabular-nums`}>
-        ⏳ {d} {u.days} {pad(h)}:{pad(m)}:{pad(s)}
-      </span>
-    );
-  }
-  if (style === "outline") {
-    // transparent boxes with a pink outline
-    return (
-      <div role="timer" className="flex gap-1.5">
-        {parts.map(([n, unit]) => (
-          <div key={unit} className="border-2 border-merrbakes-pink/60 rounded-xl px-2.5 py-0.5 flex items-baseline gap-1">
-            <span className={`${num} font-black tabular-nums text-merrbakes-pink`}>{pad(n)}</span>
-            <span className="text-sm font-bold text-merrbakes-pink/70">{unit}</span>
-          </div>
-        ))}
-      </div>
-    );
-  }
-  // tiles: small pink tiles, number + unit
+  const parts: [number, string][] = [
+    [Math.floor(total / 86400), u.days],
+    [Math.floor((total % 86400) / 3600), u.hours],
+    [Math.floor((total % 3600) / 60), u.minutes],
+    [total % 60, u.seconds],
+  ];
   return (
-    <div role="timer" className="flex gap-1.5">
-      {parts.map(([n, unit]) => (
-        <div key={unit} className="bg-merrbakes-pink text-merrbakes-brown rounded-xl px-2.5 py-1 flex items-baseline gap-1">
-          <span className={`${num} font-black tabular-nums leading-none`}>{pad(n)}</span>
-          <span className="text-sm font-bold">{unit}</span>
+    <div role="timer" aria-label={parts.map(([n, unit]) => `${n} ${unit}`).join(" ")} className="flex items-center gap-1">
+      {parts.map(([n, unit], i) => (
+        <div key={unit} className="flex items-center gap-1">
+          {i > 0 && <span className={`${small ? "text-xl" : "text-2xl"} font-black text-merrbakes-yellow/70`}>:</span>}
+          <div className={`bg-black/30 rounded-lg flex flex-col items-center ${small ? "px-2 py-0.5 min-w-11" : "px-2.5 py-1 min-w-14"}`}>
+            <span className={`${small ? "text-xl" : "text-3xl"} font-black text-merrbakes-yellow tabular-nums leading-tight`}>{String(n).padStart(2, "0")}</span>
+            <span className="text-[0.65rem] font-bold text-merrbakes-pink/70 leading-none pb-0.5">{unit}</span>
+          </div>
         </div>
       ))}
     </div>
