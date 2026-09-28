@@ -8,5 +8,4 @@ export const specialCopy = {
   closedPrefix: "preorders closed",
   addButtonLabel: "add to cart",
   addedButtonLabel: "added ✓",
-  detailsLabel: "details →", // /shop's compact banner only
 };

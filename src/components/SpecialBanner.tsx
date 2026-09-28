@@ -78,7 +78,7 @@ export default function SpecialBanner({ items, variants, variantsLoaded, onAdd, 
 
           const buy = (
             <div className="flex flex-wrap items-center gap-4">
-              <span className={`${compact ? "text-3xl" : "text-4xl"} font-black text-merrbakes-yellow ${soldOut ? "line-through opacity-60" : ""}`}>{price}</span>
+              {!compact && <span className={`text-4xl font-black text-merrbakes-yellow ${soldOut ? "line-through opacity-60" : ""}`}>{price}</span>}
               {soldOut ? (
                 <span className={`inline-flex items-center rounded-full font-bold border-2 border-merrbakes-pink/40 text-merrbakes-pink/70 ${compact ? "px-5 py-2 text-lg" : "px-6 py-3 text-xl"}`}>{copy.soldOut}</span>
               ) : (
@@ -97,25 +97,22 @@ export default function SpecialBanner({ items, variants, variantsLoaded, onAdd, 
           );
 
           if (compact) {
-            // one row: photo | pill + name + countdown | price + button; capped at 20vh on md+
+            // one centered row: photo | pill + countdown, name | add button; capped at 20vh on md+
             return (
-              <div key={it.id ?? it.name} className="flex flex-wrap md:flex-nowrap items-center gap-x-6 gap-y-3 md:max-h-[20vh]">
+              <div key={it.id ?? it.name} className="flex flex-wrap md:flex-nowrap items-center justify-center gap-x-8 gap-y-3 md:max-h-[20vh]">
                 <Link href={href} aria-label={it.name}
                       className="relative shrink-0 aspect-square h-20 md:h-[calc(20vh-2rem)] max-h-36 rounded-2xl overflow-hidden border-4 border-white shadow-lg bg-merrbakes-yellow"
                       style={{ transform: "rotate(-2deg)" }}>
                   {photo}
                 </Link>
-                <div className="min-w-0 flex-1 flex flex-col gap-1.5">
+                <div className="min-w-0 flex flex-col gap-1.5">
                   <div className="flex flex-wrap items-center gap-3">
                     {pill}
                     {clockRow}
                   </div>
                   <Link href={href} className="text-3xl font-black text-merrbakes-yellow leading-tight hover:underline">{displayName(it.name)}</Link>
                 </div>
-                <div className="shrink-0 flex items-center gap-5">
-                  {buy}
-                  <Link href={href} className="text-lg font-bold underline decoration-merrbakes-yellow decoration-4 hover:text-merrbakes-yellow">{copy.detailsLabel}</Link>
-                </div>
+                <div className="shrink-0">{buy}</div>
               </div>
             );
           }
