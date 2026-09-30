@@ -19,7 +19,7 @@ export const shopCopy = {
   merch: {
     heading: "merrch",
     subhead: "the merringue gang gear — not baked, but just as cozy.",
-    linkLabel: "🎁 looking for merrch?",
+    linkLabel: "🎁 looking for merrch or recipe cards?",
     backLabel: "🍪 back to baked goods",
   },
 
