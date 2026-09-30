@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { CONTACT_QUERIES_DB_ID, notionHeaders } from '@/lib/notion';
+import { notifyContactQuery } from '@/lib/discordNotify';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -17,6 +18,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, message: 'Invalid email' }, { status: 400 });
     }
 
+    const sentOn = new Date().toISOString();
     const res = await fetch('https://api.notion.com/v1/pages', {
       method: 'POST',
       headers: notionHeaders(),
@@ -26,7 +28,7 @@ export async function POST(req: NextRequest) {
           Name: { title: [{ text: { content: name } }] },
           Email: { email },
           Message: { rich_text: [{ text: { content: message } }] },
-          'Sent on': { date: { start: new Date().toISOString() } },
+          'Sent on': { date: { start: sentOn } },
         },
       }),
     });
@@ -36,6 +38,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, message: 'Failed to save' }, { status: 500 });
     }
 
+    await notifyContactQuery({ name, message, sentOn });
     return NextResponse.json({ success: true });
   } catch (error) {
     const err = error as Error;

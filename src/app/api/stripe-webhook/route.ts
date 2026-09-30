@@ -6,6 +6,7 @@ import { alertSummary, sendStreamAlert, streamName, cleanStreamName } from '@/li
 import { voidIfSkippedCharge } from '@/lib/chargeSkips';
 import { isWeeklySignup, startWeeklySubscription } from '@/lib/weeklySignup';
 import { isOurInvoice, isOurSession } from '@/lib/siteMarker';
+import { notifyNewOrder } from '@/lib/discordNotify';
 
 const ORDERS_DB_ID = process.env.NOTION_ORDERS_DB_ID;
 const ORDER_LINE_ITEMS_DB_ID = process.env.NOTION_ORDER_LINE_ITEMS_DB_ID;
@@ -236,6 +237,17 @@ export async function POST(req: NextRequest) {
     }
 
     const orderPage = await notionRes.json();
+    // right after the row exists, before anything that could fail — a retry
+    // stops at orderAlreadyRecorded, so this can only go out once
+    await notifyNewOrder({
+      source: 'merrbakes.com',
+      label: [weeklySignup && 'new club member', isGift && 'gift'].filter(Boolean).join(', ') || undefined,
+      buyer: session.customer_details?.name ?? '',
+      items: summaryLines,
+      total: (session.amount_total ?? 0) / 100,
+      currency: session.currency ?? 'usd',
+      orderedOn: new Date().toISOString(),
+    });
     await createOrderLineItems(ORDER_LINE_ITEMS_DB_ID, orderPage.id, lineItemsToRecord);
 
     await sendStreamAlert(weeklySignup ? {
@@ -349,6 +361,15 @@ async function recordSubscriptionInvoice(invoice: Stripe.Invoice) {
       return NextResponse.json({ error: 'notion create failed' }, { status: 500 });
     }
     const orderPage = await notionRes.json();
+    await notifyNewOrder({
+      source: 'merrbakes.com',
+      label: isSignupInvoice ? 'new club member' : 'club renewal',
+      buyer: invoice.customer_name ?? '',
+      items: summaryLines,
+      total: invoice.amount_paid / 100,
+      currency: invoice.currency,
+      orderedOn: new Date().toISOString(),
+    });
     await createOrderLineItems(ORDER_LINE_ITEMS_DB_ID, orderPage.id, lineItemsToRecord);
     return NextResponse.json({ ok: true, invoice: invoice.id });
   } catch (error) {

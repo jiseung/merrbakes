@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { KofiWebhookPayloadType } from '../types';
 import { SHOP_ITEMS_DB_ID, VARIANTS_DB_ID, notionHeaders, createOrderLineItems, queryAll } from '@/lib/notion';
 import { alertSummary, kofiStreamName, sendStreamAlert } from '@/lib/streamAlert';
+import { notifyNewOrder } from '@/lib/discordNotify';
 
 const ORDERS_DB_ID = process.env.NOTION_ORDERS_DB_ID;
 const ORDER_LINE_ITEMS_DB_ID = process.env.NOTION_ORDER_LINE_ITEMS_DB_ID;
@@ -161,6 +162,9 @@ async function createOrderRecord(params: {
   buyerName: string;
   buyerEmail: string;
   itemsSummary: string;
+  itemLines: string[]; // for Merr's Discord notification
+  noticeLabel?: string;
+  currency: string;
   relationIds: string[];
   shippingAddress: string;
   amount: number;
@@ -196,6 +200,17 @@ async function createOrderRecord(params: {
   }
 
   const orderPage = await notionRes.json();
+  // right after the row exists, before anything that could fail — a retry
+  // stops at orderAlreadyRecorded, so this can only go out once
+  await notifyNewOrder({
+    source: 'Ko-fi',
+    label: params.noticeLabel,
+    buyer: params.buyerName,
+    items: params.itemLines,
+    total: params.amount,
+    currency: params.currency,
+    orderedOn: params.orderedOn,
+  });
   await createOrderLineItems(ORDER_LINE_ITEMS_DB_ID, orderPage.id, params.lineItems);
   return { ok: true, orderId: orderPage.id };
 }
@@ -261,6 +276,9 @@ export async function POST(req: NextRequest) {
         buyerName: payload.from_name,
         buyerEmail: payload.email || '',
         itemsSummary: payload.tier_name ? `${payload.tier_name} (subscription)` : '(subscription)',
+        itemLines: [payload.tier_name || 'Club membership'],
+        noticeLabel: payload.is_first_subscription_payment ? 'new club member' : 'club renewal',
+        currency: payload.currency,
         relationIds: Array.from(relationIds),
         shippingAddress: formatShipping(payload.shipping),
         amount: parseFloat(payload.amount) || 0,
@@ -316,6 +334,8 @@ export async function POST(req: NextRequest) {
       buyerName: payload.from_name,
       buyerEmail: payload.email || '',
       itemsSummary: summaryLines.join(', '),
+      itemLines: summaryLines,
+      currency: payload.currency,
       relationIds: Array.from(relationIds),
       shippingAddress: formatShipping(payload.shipping),
       amount: parseFloat(payload.amount) || 0,
