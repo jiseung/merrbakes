@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { CONTACT_QUERIES_DB_ID, notionHeaders } from '@/lib/notion';
+import { CONTACT_QUERIES_DB_ID, notionHeaders, notionWrite } from '@/lib/notion';
 import { notifyContactQuery } from '@/lib/discordNotify';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
     }
 
     const sentOn = new Date().toISOString();
-    const res = await fetch('https://api.notion.com/v1/pages', {
+    const res = await notionWrite('https://api.notion.com/v1/pages', {
       method: 'POST',
       headers: notionHeaders(),
       body: JSON.stringify({

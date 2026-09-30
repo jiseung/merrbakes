@@ -1,5 +1,5 @@
 import Stripe from 'stripe';
-import { SHOP_ITEMS_DB_ID, VARIANTS_DB_ID, FULFILLMENT_DB_ID, notionHeaders, queryAll } from '@/lib/notion';
+import { SHOP_ITEMS_DB_ID, VARIANTS_DB_ID, FULFILLMENT_DB_ID, notionHeaders, notionWrite, queryAll } from '@/lib/notion';
 import { stripe } from '@/lib/stripe';
 import { priceToCents, variantDisplayName, displayName } from '@/lib/shopItems';
 import { applyChargeSkips } from '@/lib/chargeSkips';
@@ -86,7 +86,7 @@ async function fetchFulfillmentShopItemIds(): Promise<Set<string>> {
 }
 
 async function createStandardVariant(shopItem: ShopItemRow): Promise<VariantRow> {
-  const res = await fetch('https://api.notion.com/v1/pages', {
+  const res = await notionWrite('https://api.notion.com/v1/pages', {
     method: 'POST',
     headers: notionHeaders(),
     body: JSON.stringify({
@@ -108,7 +108,7 @@ async function createStandardVariant(shopItem: ShopItemRow): Promise<VariantRow>
 }
 
 async function createFulfillmentRow(shopItem: ShopItemRow): Promise<void> {
-  await fetch('https://api.notion.com/v1/pages', {
+  await notionWrite('https://api.notion.com/v1/pages', {
     method: 'POST',
     headers: notionHeaders(),
     body: JSON.stringify({
@@ -122,7 +122,7 @@ async function createFulfillmentRow(shopItem: ShopItemRow): Promise<void> {
 }
 
 async function setVariantDefault(variantId: string): Promise<void> {
-  await fetch(`https://api.notion.com/v1/pages/${variantId}`, {
+  await notionWrite(`https://api.notion.com/v1/pages/${variantId}`, {
     method: 'PATCH',
     headers: notionHeaders(),
     body: JSON.stringify({ properties: { Default: { checkbox: true } } }),
@@ -130,7 +130,7 @@ async function setVariantDefault(variantId: string): Promise<void> {
 }
 
 async function setVariantStripePriceId(variantId: string, stripePriceId: string): Promise<void> {
-  await fetch(`https://api.notion.com/v1/pages/${variantId}`, {
+  await notionWrite(`https://api.notion.com/v1/pages/${variantId}`, {
     method: 'PATCH',
     headers: notionHeaders(),
     body: JSON.stringify({ properties: { 'Stripe Price ID': { rich_text: [{ text: { content: stripePriceId } }] } } }),

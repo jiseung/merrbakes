@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { stripe } from '@/lib/stripe';
-import { notionHeaders, createOrderLineItems } from '@/lib/notion';
+import { notionHeaders, notionWrite, createOrderLineItems } from '@/lib/notion';
 import { alertSummary, sendStreamAlert, streamName, cleanStreamName } from '@/lib/streamAlert';
 import { voidIfSkippedCharge } from '@/lib/chargeSkips';
 import { isWeeklySignup, startWeeklySubscription } from '@/lib/weeklySignup';
@@ -213,7 +213,7 @@ export async function POST(req: NextRequest) {
       ? `(gift for ${session.metadata?.gift_recipient ?? 'recipient'} — Merr to get the address from the recipient)`
       : formatShipping(session);
 
-    const notionRes = await fetch('https://api.notion.com/v1/pages', {
+    const notionRes = await notionWrite('https://api.notion.com/v1/pages', {
       method: 'POST',
       headers: notionHeaders(),
       body: JSON.stringify({
@@ -344,7 +344,7 @@ async function recordSubscriptionInvoice(invoice: Stripe.Invoice) {
     const shippingText = formatCustomerShipping(invoice.customer_shipping) || (session ? formatShipping(session) : '');
     const label = isSignupInvoice ? 'first box' : 'renewal';
 
-    const notionRes = await fetch('https://api.notion.com/v1/pages', {
+    const notionRes = await notionWrite('https://api.notion.com/v1/pages', {
       method: 'POST',
       headers: notionHeaders(),
       body: JSON.stringify({

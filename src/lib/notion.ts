@@ -16,6 +16,27 @@ export function notionHeaders() {
   };
 }
 
+// Notion holds Merr's real shop data, and the live site stores LIVE Stripe price
+// ids in it. A test-mode Stripe key means a local/test run, so every Notion write
+// (orders, contact queries, sync fixes, price ids) goes through notionWrite and is
+// skipped: a test price id written back would break the live site's next checkout.
+export function notionWritesDisabled(): boolean {
+  return (process.env.STRIPE_SECRET_KEY ?? '').includes('_test_');
+}
+
+export const SKIPPED_NOTION_PAGE_ID = 'notion-write-skipped-test-mode';
+
+export async function notionWrite(url: string, init: RequestInit): Promise<Response> {
+  if (notionWritesDisabled()) {
+    console.log(`notion write skipped (test-mode Stripe key): ${init.method ?? 'GET'} ${url}`);
+    return new Response(JSON.stringify({ object: 'page', id: SKIPPED_NOTION_PAGE_ID }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+  return fetch(url, init);
+}
+
 // Every row of a database. A single query returns at most 100 rows, and the
 // variants db is well past that.
 export async function queryAll(databaseId: string): Promise<any[]> {
@@ -48,7 +69,7 @@ export async function createOrderLineItems(
   if (!lineItemsDbId || lines.length === 0) return;
   await Promise.all(
     lines.map(async (line) => {
-      const res = await fetch('https://api.notion.com/v1/pages', {
+      const res = await notionWrite('https://api.notion.com/v1/pages', {
         method: 'POST',
         headers: notionHeaders(),
         body: JSON.stringify({

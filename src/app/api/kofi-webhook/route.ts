@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { KofiWebhookPayloadType } from '../types';
-import { SHOP_ITEMS_DB_ID, VARIANTS_DB_ID, notionHeaders, createOrderLineItems, queryAll } from '@/lib/notion';
+import { SHOP_ITEMS_DB_ID, VARIANTS_DB_ID, notionHeaders, notionWrite, createOrderLineItems, queryAll } from '@/lib/notion';
 import { alertSummary, kofiStreamName, sendStreamAlert } from '@/lib/streamAlert';
 import { notifyNewOrder } from '@/lib/discordNotify';
 
@@ -173,7 +173,7 @@ async function createOrderRecord(params: {
   message: string;
   lineItems: { title: string; variantId: string; quantity: number }[];
 }): Promise<{ ok: true; orderId: string } | { ok: false; error: string }> {
-  const notionRes = await fetch('https://api.notion.com/v1/pages', {
+  const notionRes = await notionWrite('https://api.notion.com/v1/pages', {
     method: 'POST',
     headers: notionHeaders(),
     body: JSON.stringify({
