@@ -7,6 +7,7 @@ import { voidIfSkippedCharge } from '@/lib/chargeSkips';
 import { isWeeklySignup, startWeeklySubscription } from '@/lib/weeklySignup';
 import { isOurInvoice, isOurSession } from '@/lib/siteMarker';
 import { notifyNewOrder } from '@/lib/discordNotify';
+import { notifyIfCancellation } from '@/lib/membershipCancel';
 
 const ORDERS_DB_ID = process.env.NOTION_ORDERS_DB_ID;
 const ORDER_LINE_ITEMS_DB_ID = process.env.NOTION_ORDER_LINE_ITEMS_DB_ID;
@@ -89,6 +90,12 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     console.log('stripe-webhook: signature verification failed', (err as Error).message);
     return NextResponse.json({ error: 'invalid signature' }, { status: 400 });
+  }
+
+  // membership cancellations, Ko-fi's included — notify only (lib/membershipCancel)
+  if (event.type === 'customer.subscription.updated' || event.type === 'customer.subscription.deleted') {
+    const ok = await notifyIfCancellation(event);
+    return ok ? NextResponse.json({ ok: true }) : NextResponse.json({ error: 'stripe read failed' }, { status: 500 });
   }
 
   // membership renewal just created (still a draft): cancel it if its day is

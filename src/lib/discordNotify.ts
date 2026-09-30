@@ -1,7 +1,7 @@
 // Phone notifications for Merr, via a Discord webhook into a private channel
 // (owner, 2026-09-30). One message per new Orders row — Ko-fi or merrbakes.com,
-// signups and renewals alike, since each is a box to pack — and one per
-// contact-form query. Unlike the stream alerts (lib/streamAlert) these are
+// signups and renewals alike, since each is a box to pack — one per
+// contact-form query, and one per membership cancellation step. Unlike the stream alerts (lib/streamAlert) these are
 // private, so they carry the buyer's real name, quantities and the total.
 // Shipping addresses and emails stay in Notion.
 //
@@ -79,6 +79,41 @@ export async function notifyNewOrder(order: OrderNotice): Promise<void> {
       title: clip(heading, 256),
       description: clip(lines.join('\n'), 4000),
       color: order.source === 'Ko-fi' ? 0x29abe0 : 0xe0598b,
+    }],
+  });
+}
+
+export type MembershipNotice = {
+  phase: 'scheduled' | 'ended' | 'undone';
+  source: 'Ko-fi' | 'merrbakes.com' | 'Stripe';
+  member: string;
+  membership: string;
+  date?: number; // unix seconds: last day (scheduled) or when it ended
+  reason?: string;
+  subscriptionId: string;
+};
+
+const MEMBERSHIP_HEADINGS: Record<MembershipNotice['phase'], string> = {
+  scheduled: '⚠️ Membership cancelling',
+  ended: '❌ Membership ended',
+  undone: '✅ Cancellation undone',
+};
+
+// owner, 2026-09-30: Ko-fi memberships included; notify when a cancellation is
+// scheduled and again when it actually ends
+export async function notifyMembershipChange(m: MembershipNotice): Promise<void> {
+  const lines = [
+    `**Member:** ${m.member || '(no name)'}`,
+    `**Membership:** ${m.membership || '(unknown)'}`,
+  ];
+  if (m.date) lines.push(`**${m.phase === 'ended' ? 'Ended' : m.phase === 'scheduled' ? 'Ends' : 'Renews'}:** <t:${m.date}:D>`);
+  if (m.reason) lines.push(`**Reason:** ${m.reason}`);
+  lines.push(`[Open in Stripe](https://dashboard.stripe.com/subscriptions/${m.subscriptionId})`);
+  await post({
+    embeds: [{
+      title: `${MEMBERSHIP_HEADINGS[m.phase]} — ${m.source}`,
+      description: clip(lines.join('\n'), 4000),
+      color: m.phase === 'undone' ? 0x57b36b : m.phase === 'ended' ? 0x8b5a3c : 0xe89a3c,
     }],
   });
 }
