@@ -191,12 +191,15 @@ export async function POST(req: NextRequest) {
     // level") — reading it back here avoids a second name-matching lookup.
     const relationIds = new Set<string>();
     const lineItemsToRecord: { title: string; variantId: string; quantity: number }[] = [];
-    // a tip added in the cart rides along in Stripe but isn't part of the order
-    // (lib/tips: product metadata kind=tip) — left out of the Notion row
-    const orderLines = lineItems.data.filter((li) => {
+    // a tip added in the cart rides along in Stripe (lib/tips: product metadata
+    // kind=tip) — not an item, so it's kept out of the summary/line items and
+    // recorded in the row's Tip column instead (owner, 2026-10-01)
+    const isTipLine = (li: Stripe.LineItem) => {
       const product = li.price?.product;
-      return !(typeof product === 'object' && product && !product.deleted && product.metadata?.kind === 'tip');
-    });
+      return typeof product === 'object' && product && !product.deleted && product.metadata?.kind === 'tip';
+    };
+    const orderLines = lineItems.data.filter((li) => !isTipLine(li));
+    const tipCents = lineItems.data.filter(isTipLine).reduce((sum, li) => sum + li.amount_total, 0);
     const summaryLines = orderLines.map((li) => {
       const product = li.price?.product;
       const notionPageId = typeof product === 'object' && product && !product.deleted ? product.metadata?.notion_page_id : undefined;
@@ -230,6 +233,7 @@ export async function POST(req: NextRequest) {
           'Gift Recipient': { rich_text: [{ text: { content: session.metadata?.gift_recipient ?? '' } }] },
           'Gift Message': { rich_text: [{ text: { content: session.metadata?.gift_message ?? '' } }] },
           Amount: { number: (session.amount_total ?? 0) / 100 },
+          ...(tipCents > 0 ? { Tip: { number: tipCents / 100 } } : {}),
           'Ordered on': { date: { start: new Date().toISOString() } },
           'Transaction or Session ID': { rich_text: [{ text: { content: session.id } }] },
           'Referred By': { rich_text: [{ text: { content: session.metadata?.referred_by ?? '' } }] },
@@ -323,11 +327,13 @@ async function recordSubscriptionInvoice(invoice: Stripe.Invoice) {
     const relationIds = new Set<string>();
     const lineItemsToRecord: { title: string; variantId: string; quantity: number }[] = [];
     const summaryLines: string[] = [];
+    let tipCents = 0;
     for (const line of lines.data) {
       if (line.amount <= 0) continue;
       const productId = line.pricing?.price_details?.product;
       const product = productId ? await stripe.products.retrieve(productId) : null;
-      if (product?.metadata?.kind === 'tip') continue; // signup tip — not part of the order
+      // signup tip — not an item; goes in the row's Tip column (owner, 2026-10-01)
+      if (product?.metadata?.kind === 'tip') { tipCents += line.amount; continue; }
       const variantId = product?.metadata?.notion_page_id;
       const title = product?.name ?? line.description ?? 'Membership';
       if (variantId) {
@@ -358,6 +364,7 @@ async function recordSubscriptionInvoice(invoice: Stripe.Invoice) {
           Items: { relation: Array.from(relationIds).map((id) => ({ id })) },
           'Shipping Address': { rich_text: [{ text: { content: shippingText } }] },
           Amount: { number: invoice.amount_paid / 100 },
+          ...(tipCents > 0 ? { Tip: { number: tipCents / 100 } } : {}),
           'Ordered on': { date: { start: new Date().toISOString() } },
           'Transaction or Session ID': { rich_text: [{ text: { content: invoice.id } }] },
         },
