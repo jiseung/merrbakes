@@ -1,4 +1,5 @@
 import { ordersCloseAt } from '@/lib/shopItems';
+import { isStripeTestMode } from '@/lib/testMode';
 export const NOTION_VERSION = '2022-06-28';
 export const SHOP_ITEMS_DB_ID = '3cb75009-8304-808e-bb4a-cc8156af562e';
 export const VARIANTS_DB_ID = '3cb75009-8304-80f4-b28b-f9ee459e06f2';
@@ -21,7 +22,7 @@ export function notionHeaders() {
 // (orders, contact queries, sync fixes, price ids) goes through notionWrite and is
 // skipped: a test price id written back would break the live site's next checkout.
 export function notionWritesDisabled(): boolean {
-  return (process.env.STRIPE_SECRET_KEY ?? '').includes('_test_');
+  return isStripeTestMode();
 }
 
 export const SKIPPED_NOTION_PAGE_ID = 'notion-write-skipped-test-mode';

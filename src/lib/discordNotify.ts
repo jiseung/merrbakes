@@ -6,9 +6,11 @@
 // Shipping addresses and emails stay in Notion.
 //
 // DISCORD_ORDER_WEBHOOK_URL is the channel's webhook URL (it embeds a secret —
-// anyone holding it can post there). Unset = notifications off.
+// anyone holding it can post there). Unset = notifications off. Also off under
+// a test-mode Stripe key (lib/testMode).
 
 import { CONTACT_QUERIES_DB_ID } from '@/lib/notion';
+import { isStripeTestMode } from '@/lib/testMode';
 
 const notionDbLink = (id: string) => `https://www.notion.so/${id.replace(/-/g, '')}`;
 
@@ -49,6 +51,10 @@ const clip = (s: string, max: number) => (s.length > max ? `${s.slice(0, max - 1
 async function post(body: object): Promise<void> {
   const url = process.env.DISCORD_ORDER_WEBHOOK_URL?.trim();
   if (!url) return;
+  if (isStripeTestMode()) {
+    console.log('discord notify skipped (test-mode Stripe key)');
+    return;
+  }
   try {
     const res = await fetch(url, {
       method: 'POST',

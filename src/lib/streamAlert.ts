@@ -8,9 +8,11 @@
 //   (owner, 2026-09-25 — previously fell back to their first name from Stripe)
 //
 // MIXITUP_WEBHOOK_URL is MixItUp's webhook trigger URL (it embeds a secret —
-// anyone holding it can fire the alert). Unset = alerts off.
+// anyone holding it can fire the alert). Unset = alerts off. Also off under a
+// test-mode Stripe key (lib/testMode).
 
 import { alertPhrases } from '@/content/shoutout';
+import { isStripeTestMode } from '@/lib/testMode';
 
 export type StreamAlertKind = 'purchase' | 'subscription' | 'donation';
 
@@ -51,6 +53,10 @@ export function kofiStreamName(fromName: string, isPublic: boolean): string {
 export async function sendStreamAlert(alert: StreamAlert): Promise<void> {
   const url = process.env.MIXITUP_WEBHOOK_URL;
   if (!url) return;
+  if (isStripeTestMode()) {
+    console.log(`stream alert skipped (test-mode Stripe key): ${alert.kind}`);
+    return;
+  }
   try {
     const res = await fetch(url, {
       method: 'POST',
